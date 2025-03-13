@@ -1,0 +1,1 @@
+{"flow":[{"id":"module-1","name":"HTTP Request","type":"http","parameters":{"url":"https://example.com","method":"GET"}},{"id":"module-2","name":"Custom Module","type":"custom","parameters":{"value":"test"}}]}

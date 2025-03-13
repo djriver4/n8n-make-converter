@@ -1,0 +1,1 @@
+{"nodes":[{"id":"test-node-1","name":"HTTP Request","type":"n8n-nodes-base.httpRequest","parameters":{"url":"https://example.com","method":"GET"}},{"id":"test-node-2","name":"Custom Node","type":"custom.someNode","parameters":{"value":"test"}}],"connections":{}}

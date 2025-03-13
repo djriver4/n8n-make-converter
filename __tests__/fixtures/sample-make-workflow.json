@@ -1,0 +1,49 @@
+{
+  "name": "Sample Make Workflow",
+  "flow": [
+    {
+      "id": "1",
+      "name": "HTTP",
+      "type": "http",
+      "parameters": {
+        "url": "https://example.com/api",
+        "method": "GET",
+        "timeout": "5000"
+      },
+      "metadata": {
+        "designer": {
+          "x": 100,
+          "y": 100
+        }
+      }
+    },
+    {
+      "id": "2",
+      "name": "JSON",
+      "type": "json",
+      "parameters": {
+        "parsedObject": "{{1.data}}"
+      },
+      "metadata": {
+        "designer": {
+          "x": 300,
+          "y": 100
+        }
+      }
+    },
+    {
+      "id": "3",
+      "name": "Tools",
+      "type": "tools",
+      "parameters": {
+        "code": "// Process the data\nreturn {\n  result: items[0].data.map(function(item) {\n    return item.value * 2;\n  })\n};"
+      },
+      "metadata": {
+        "designer": {
+          "x": 500,
+          "y": 100
+        }
+      }
+    }
+  ]
+} 

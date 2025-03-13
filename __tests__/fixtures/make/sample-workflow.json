@@ -1,0 +1,152 @@
+{
+  "name": "Sample Make Workflow",
+  "flow": [
+    {
+      "id": 1,
+      "module": "http:ActionSendData",
+      "version": 3,
+      "parameters": {
+        "keepTrackOfResponses": true,
+        "useNewZLibDecompression": true
+      },
+      "mapper": {
+        "ca": "",
+        "cert": "",
+        "cipher": "",
+        "dataSrc": "bodyRaw",
+        "followAllRedirects": true,
+        "followRedirects": true,
+        "headers": [
+          [
+            "Content-Type",
+            "application/json"
+          ]
+        ],
+        "insecure": true,
+        "key": "",
+        "method": "POST",
+        "password": "",
+        "raw": "{\n  \"username\": \"{{1.username}}\",\n  \"password\": \"{{1.password}}\"\n}",
+        "url": "https://example.com/api",
+        "username": ""
+      },
+      "metadata": {
+        "designer": {
+          "x": 100,
+          "y": 100
+        },
+        "restore": {
+          "expect": {
+            "headers": {
+              "mode": "chose"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "keepTrackOfResponses",
+            "type": "boolean",
+            "label": "Keep track of responses",
+            "required": true
+          },
+          {
+            "name": "useNewZLibDecompression",
+            "type": "boolean",
+            "label": "Use new zlib decompression",
+            "required": true
+          }
+        ]
+      },
+      "name": "HTTP Request"
+    },
+    {
+      "id": 2,
+      "module": "flow:ActionRouter",
+      "version": 1,
+      "parameters": {
+        "conditions": {
+          "conditions": [
+            {
+              "items": [
+                {
+                  "items": [
+                    {
+                      "name": "status",
+                      "type": "text",
+                      "value": "{{1.status}}"
+                    },
+                    {
+                      "name": "",
+                      "type": "text",
+                      "value": "success"
+                    }
+                  ],
+                  "operation": "text:equal"
+                }
+              ],
+              "operation": "and"
+            }
+          ],
+          "operation": "or"
+        }
+      },
+      "metadata": {
+        "designer": {
+          "x": 300,
+          "y": 100
+        }
+      },
+      "name": "Router"
+    },
+    {
+      "id": 3,
+      "module": "set:Variable",
+      "version": 1,
+      "parameters": {},
+      "mapper": {
+        "message": "Login successful!"
+      },
+      "metadata": {
+        "designer": {
+          "x": 500,
+          "y": 50
+        }
+      },
+      "name": "Set Success"
+    },
+    {
+      "id": 4,
+      "module": "set:Variable",
+      "version": 1,
+      "parameters": {},
+      "mapper": {
+        "message": "Login failed!"
+      },
+      "metadata": {
+        "designer": {
+          "x": 500,
+          "y": 150
+        }
+      },
+      "name": "Set Failure"
+    }
+  ],
+  "metadata": {
+    "instant": false,
+    "version": 1,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "autoCommitTriggerLast": true,
+      "sequential": false,
+      "confidential": false,
+      "dataloss": false,
+      "dlq": false
+    },
+    "designer": {
+      "orphans": []
+    },
+    "zone": "eu1.make.com"
+  }
+} 

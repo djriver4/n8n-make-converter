@@ -1,0 +1,68 @@
+{
+  "nodes": [
+    {
+      "id": "1",
+      "name": "HTTP",
+      "type": "n8n-nodes-base.httpRequest",
+      "parameters": {
+        "url": "https://example.com/api",
+        "method": "GET",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "position": [
+        100,
+        100
+      ]
+    },
+    {
+      "id": "2",
+      "name": "JSON",
+      "type": "n8n-nodes-base.jsonParse",
+      "parameters": {
+        "property": "={{ $json.data }}"
+      },
+      "position": [
+        300,
+        100
+      ]
+    },
+    {
+      "id": "3",
+      "name": "Tools",
+      "type": "n8n-nodes-base.function",
+      "parameters": {
+        "functionCode": "// Process the data\nreturn {\n  result: $input.first().json.data.map(item => item.value * 2)\n};"
+      },
+      "position": [
+        500,
+        100
+      ]
+    }
+  ],
+  "connections": {
+    "HTTP": {
+      "main": [
+        [
+          {
+            "node": "JSON",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "JSON": {
+      "main": [
+        [
+          {
+            "node": "Tools",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+} 

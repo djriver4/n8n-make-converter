@@ -1,0 +1,49 @@
+{
+  "name": "Converted from n8n",
+  "flow": [
+    {
+      "id": "a1b2c3",
+      "name": "HTTP Request",
+      "type": "http",
+      "parameters": {
+        "url": "https://example.com/api",
+        "method": "GET",
+        "timeout": "5000"
+      },
+      "metadata": {
+        "designer": {
+          "x": 100,
+          "y": 200
+        }
+      }
+    },
+    {
+      "id": "d4e5f6",
+      "name": "JSON Parse",
+      "type": "json",
+      "parameters": {
+        "parsedObject": "{{a1b2c3.data}}"
+      },
+      "metadata": {
+        "designer": {
+          "x": 300,
+          "y": 200
+        }
+      }
+    },
+    {
+      "id": "g7h8i9",
+      "name": "Function",
+      "type": "tools",
+      "parameters": {
+        "code": "// Code that contains complex expressions\nreturn {\n  result: items[0].data.map(function(item) {\n    return item.value * 2;\n  })\n};"
+      },
+      "metadata": {
+        "designer": {
+          "x": 500,
+          "y": 200
+        }
+      }
+    }
+  ]
+} 

@@ -1,0 +1,77 @@
+{
+  "name": "Converted from n8n",
+  "flow": [
+    {
+      "id": 1,
+      "module": "http:ActionSendData",
+      "version": 1,
+      "parameters": {},
+      "mapper": {
+        "url": "https://example.com/api",
+        "method": "GET",
+        "authentication": "none",
+        "options": {
+          "timeout": 5000
+        }
+      },
+      "metadata": {
+        "designer": {
+          "x": 100,
+          "y": 200
+        }
+      },
+      "name": "HTTP Request"
+    },
+    {
+      "id": 2,
+      "module": "unknown:Module",
+      "version": 1,
+      "parameters": {},
+      "mapper": {
+        "property": "data",
+        "options": {}
+      },
+      "metadata": {
+        "designer": {
+          "x": 300,
+          "y": 200
+        }
+      },
+      "name": "JSON Parse"
+    },
+    {
+      "id": 3,
+      "module": "code:JavaScriptCode",
+      "version": 1,
+      "parameters": {},
+      "mapper": {
+        "functionCode": "// Code that contains complex expressions\nreturn {\n  result: $input.first().json.data.map(item => item.value * 2)\n};"
+      },
+      "metadata": {
+        "designer": {
+          "x": 500,
+          "y": 200
+        }
+      },
+      "name": "Function"
+    }
+  ],
+  "metadata": {
+    "instant": false,
+    "version": 1,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "autoCommitTriggerLast": true,
+      "sequential": false,
+      "confidential": false,
+      "dataloss": false,
+      "dlq": false
+    },
+    "designer": {
+      "orphans": []
+    },
+    "zone": "eu1.make.com"
+  }
+}
