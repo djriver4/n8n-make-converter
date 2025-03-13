@@ -1,5 +1,14 @@
 import UserMappingStore from "../user-mappings/user-mapping-store"
 
+// Define the NodeMappingDefinition interface
+export interface NodeMappingDefinition {
+  type: string;
+  parameterMap: Record<string, string>;
+  description?: string;
+  userDefined?: boolean;
+  displayName?: string;
+}
+
 // Base node mappings between n8n and Make.com
 export const BASE_NODE_MAPPING = {
   // n8n to Make.com

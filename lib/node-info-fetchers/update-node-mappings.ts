@@ -6,7 +6,7 @@
 
 import { NodeInfoStore } from "./node-info-store"
 import { NodeInfo } from "../types/node-info"
-import { getNodeMappings } from "../mappings/node-mapping"
+import { getNodeMappings, baseNodeMapping } from "../mappings/node-mapping"
 
 // Define interfaces for the mapping objects
 interface ParameterMap {
@@ -55,37 +55,40 @@ export function areMappingsEnhanced(): boolean {
   return mappingsEnhanced;
 }
 
-/**
- * Ensure node mappings are enhanced before conversion
- * This should be called before any conversion operation
- */
+// Ensure mappings are enhanced with node information
+let enhancedMappings = false;
+
 export async function ensureMappingsEnhanced(): Promise<boolean> {
-  if (mappingsEnhanced) {
-    return true; // Already enhanced
-  }
-  
-  try {
-    // First try to use the local file
-    await enhanceNodeMappings({
-      useLocalFile: true,
-      localFilePath: '/nodes-n8n.json'
-    });
-    
-    mappingsEnhanced = true;
+  if (enhancedMappings) {
     return true;
-  } catch (error) {
-    console.warn("Could not enhance mappings with local file, trying GitHub:", error);
-    
-    try {
-      // Fall back to GitHub
-      await enhanceNodeMappings();
-      mappingsEnhanced = true;
-      return true;
-    } catch (fallbackError) {
-      console.error("Failed to enhance mappings:", fallbackError);
-      return false;
-    }
   }
+
+  try {
+    const enhanced = await enhanceNodeMappings();
+    enhancedMappings = enhanced;
+    return enhanced;
+  } catch (error) {
+    console.warn("Error enhancing node mappings:", error);
+    console.log("Continuing with base mappings only...");
+    return false;
+  }
+}
+
+// Helper function to update mappings with node info
+function updateMappingsWithNodeInfo(nodeInfo: any): void {
+  if (!nodeInfo) return;
+  
+  // Update n8n to Make mappings with additional node info
+  Object.keys(nodeInfo).forEach(nodeType => {
+    const info = nodeInfo[nodeType];
+    // Use type assertion to tell TypeScript this is a valid key
+    if (nodeType in baseNodeMapping.n8nToMake) {
+      // Use type assertion to treat the mapping as NodeMapping
+      const mapping = baseNodeMapping.n8nToMake[nodeType as keyof typeof baseNodeMapping.n8nToMake] as NodeMapping;
+      mapping.description = info.description || '';
+      mapping.displayName = info.displayName || '';
+    }
+  });
 }
 
 /**
@@ -98,11 +101,12 @@ export async function enhanceNodeMappings(options: {
   localFilePath?: string;
 } = {}): Promise<boolean> {
   try {
-    // First try to load from local file if available
+    // First, try to load from local file
     try {
-      const success = await NodeInfoStore.loadNodesFromFile(options.localFilePath);
-      if (success) {
-        console.log("Enhanced node mappings with node data");
+      const localFilePath = options.localFilePath || "/nodes-n8n.json";
+      const nodeInfo = await NodeInfoStore.loadNodesFromFile(localFilePath);
+      if (nodeInfo && Object.keys(nodeInfo).length > 0) {
+        updateMappingsWithNodeInfo(nodeInfo);
         return true;
       }
     } catch (error) {
@@ -114,24 +118,22 @@ export async function enhanceNodeMappings(options: {
         return false;
       }
       
-      try {
-        // Fall back to GitHub
-        const success = await NodeInfoStore.fetchNodes(options.forceUpdate);
-        if (success) {
-          console.log("Enhanced node mappings with data from GitHub");
-          return true;
-        }
-      } catch (fallbackError) {
-        console.error("Failed to enhance mappings:", fallbackError);
-        return false;
+      // If local file fails, try fetching from GitHub
+      const nodes = await NodeInfoStore.fetchNodes(options.forceUpdate);
+      if (nodes && Object.keys(nodes).length > 0) {
+        updateMappingsWithNodeInfo(nodes);
+        console.log("Enhanced node mappings with data from GitHub");
+        return true;
       }
     }
+    
+    // If both methods fail
+    console.warn("Could not enhance node mappings from any source, using base mappings only.");
+    return false;
   } catch (error) {
     console.error("Error enhancing node mappings:", error);
-    throw error; // Re-throw to allow proper fallback handling
+    return false;
   }
-  
-  return false;
 }
 
 /**
@@ -208,18 +210,17 @@ function enhanceMakeToN8nMapping(moduleType: string, nodeInfo: NodeInfo, mapping
   // Track the n8n node type as enhanced
   const nodeType = nodeInfo.type;
   if (nodeType) {
-    enhancedNodeTypes.add(`n8n-nodes-base.${nodeType}`);
+    enhancedNodeTypes.add(nodeType);
   }
 }
 
 /**
- * Finds the n8n node type that maps to a given Make module type
+ * Helper function to find the n8n node type for a given Make module type
  */
 function findN8nNodeTypeForModule(moduleType: string, mappings: Mappings): string | null {
-  for (const [nodeType, mapping] of Object.entries(mappings.n8nToMake)) {
-    if (mapping.type === moduleType) {
-      return nodeType
-    }
+  const makeToN8n = mappings.makeToN8n;
+  if (makeToN8n[moduleType]) {
+    return makeToN8n[moduleType].type;
   }
-  return null
-} 
+  return null;
+}

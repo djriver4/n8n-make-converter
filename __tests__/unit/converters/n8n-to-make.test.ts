@@ -1,6 +1,6 @@
-import { n8nToMake } from '@/lib/converters/n8n-to-make';
+import { n8nToMake } from '../../../lib/converters/n8n-to-make';
 import { loadFixture, compareWorkflows, validateParameterConversion } from '../../utils/test-helpers';
-import { DebugTracker } from '@/lib/debug-tracker';
+import { DebugTracker } from '../../../lib/debug-tracker';
 
 describe('n8n to Make Converter', () => {
   let sourceWorkflow: any;

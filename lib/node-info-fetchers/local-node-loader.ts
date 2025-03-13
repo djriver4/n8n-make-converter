@@ -15,6 +15,9 @@ if (typeof window === 'undefined') {
   path = require('path');
 }
 
+// Import isomorphic-fetch for environments without native fetch
+require('isomorphic-fetch');
+
 /**
  * Interface for GitHub directory listing entry
  */
@@ -31,52 +34,40 @@ interface NodeDirEntry {
  * @param filePath Path to the JSON file containing node information
  * @returns Record of NodeInfo objects
  */
-export async function loadNodesFromFile(filePath: string): Promise<Record<string, NodeInfo>> {
+export async function loadNodesFromFile(filePath: string): Promise<any> {
+  console.log("Loading n8n nodes from local file:", filePath)
+  
   try {
-    console.log(`Loading n8n nodes from local file: ${filePath}`)
+    let resolvedPath = filePath;
     
-    let nodeEntries: NodeDirEntry[];
-    
-    // Handle different environments (browser vs Node.js)
-    if (typeof window !== 'undefined') {
-      // Browser environment - fetch the file
-      const response = await fetch(filePath);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch file: ${response.statusText}`);
+    // In browser environment, we can't use path.isAbsolute
+    if (typeof window === 'undefined' && path) {
+      // Check if path is relative, and resolve it
+      if (!path.isAbsolute(filePath)) {
+        resolvedPath = path.resolve(process.cwd(), filePath);
       }
-      nodeEntries = await response.json();
+      
+      // Read file directly using fs instead of fetch for local files
+      if (fs && fs.existsSync(resolvedPath)) {
+        const fileContent = fs.readFileSync(resolvedPath, 'utf8');
+        return JSON.parse(fileContent);
+      } else {
+        throw new Error(`File not found: ${resolvedPath}`);
+      }
     } else {
-      // Node.js environment - use fs
-      const fileContent = await fs.promises.readFile(filePath, 'utf-8');
-      nodeEntries = JSON.parse(fileContent);
-    }
-    
-    // Transform the entries into NodeInfo objects
-    const nodeInfoMap: Record<string, NodeInfo> = {}
-    
-    nodeEntries.forEach((entry) => {
-      // Skip non-directory entries
-      if (entry.type !== 'dir') return
-      
-      // Create a basic NodeInfo object from the directory name
-      const nodeInfo: NodeInfo = {
-        name: entry.name,
-        type: entry.name.toLowerCase().replace(/\s+/g, ''),
-        displayName: entry.name,
-        description: `${entry.name} node`,
-        properties: {},
-        inputs: [],
-        outputs: [],
-        directory: entry.name
+      // In browser environment, we need to use fetch
+      // Assuming the file is hosted and accessible via fetch
+      try {
+        const response = await fetch(filePath);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch ${filePath}: ${response.status} ${response.statusText}`);
+        }
+        return await response.json();
+      } catch (fetchError) {
+        console.error("Error fetching nodes file:", fetchError);
+        throw fetchError;
       }
-      
-      const nodeType = `n8n-nodes-base.${nodeInfo.type}`
-      nodeInfoMap[nodeType] = nodeInfo
-    })
-    
-    console.log(`Transformed ${Object.keys(nodeInfoMap).length} nodes from local file`)
-    return nodeInfoMap
-    
+    }
   } catch (error) {
     console.error("Error loading nodes from file:", error)
     throw error

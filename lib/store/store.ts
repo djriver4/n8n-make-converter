@@ -9,6 +9,11 @@ type Log = {
   message: string
 }
 
+interface ConversionLog {
+  type: "info" | "warning" | "error";
+  message: string;
+}
+
 // Define the store state type
 interface WorkflowState {
   // Source workflow data
@@ -42,6 +47,8 @@ interface WorkflowState {
   parameterReviewData: Record<string, any>
   isReviewing: boolean
 
+  recentUploads: string[];
+
   // Actions
   setSourceJson: (json: string) => void
   setConvertedJson: (json: string) => void
@@ -59,7 +66,7 @@ interface WorkflowState {
   parseWorkflow: (jsonString: string) => void
   convertWorkflow: () => Promise<void>
   uploadWorkflow: (json: any, platform: "n8n" | "make") => void
-  setStubNodes: (nodes) => void
+  setStubNodes: (nodes: any[]) => void
 
   // Add these to the actions
   setParameterReviewData: (data: Record<string, any>) => void
@@ -70,6 +77,17 @@ interface WorkflowState {
     value: any,
     action: "accept" | "reject" | "edit",
   ) => void
+
+  setRecentUploads: (uploads: string[]) => void;
+}
+
+interface ConversionResult {
+  convertedWorkflow: any;
+  logs: ConversionLog[];
+  parametersNeedingReview: string[];
+  workflowHasFunction?: boolean;
+  debugData?: any;
+  parameterReviewData?: Record<string, any>;
 }
 
 // Create the store
@@ -102,6 +120,8 @@ export const useWorkflowStore = create<WorkflowState>()(
       // Add these to the initial state
       parameterReviewData: {},
       isReviewing: false,
+
+      recentUploads: [],
 
       // Actions
       setSourceJson: (json) => set({ sourceJson: json }),
@@ -221,14 +241,14 @@ export const useWorkflowStore = create<WorkflowState>()(
           const formattedJson = JSON.stringify(convertedWorkflow, null, 2)
 
           // Extract stub nodes from the converted workflow
-          let stubNodes = []
+          let stubNodes: any[] = []
           if (state.targetPlatform === "n8n" && convertedWorkflow.nodes) {
             stubNodes = convertedWorkflow.nodes.filter(
-              (node) => node.type === "n8n-nodes-base.noOp" && node.parameters?.__stubInfo,
+              (node: any) => node.type === "n8n-nodes-base.noOp" && node.parameters?.__stubInfo,
             )
           } else if (state.targetPlatform === "make" && convertedWorkflow.flow) {
             stubNodes = convertedWorkflow.flow.filter(
-              (module) => module.module === "helper:Note" && module.mapper?.__stubInfo,
+              (module: any) => module.module === "helper:Note" && module.mapper?.__stubInfo,
             )
           }
 
@@ -238,7 +258,7 @@ export const useWorkflowStore = create<WorkflowState>()(
             conversionLogs: [{ type: "info", message: "Conversion completed successfully" }, ...(logs || [])],
             debugData: debugData || null,
             stubNodes,
-            activeTab: stubNodes.length > 0 ? "debug" : "editor", // Switch to debug tab if there are stub nodes
+            activeTab: stubNodes.length > 0 ? "debug" : (parameterReviewData && Object.keys(parameterReviewData).length > 0 ? "analyze" : "editor"),
             showResults: true,
             isConverting: false,
             parameterReviewData: parameterReviewData || {},
@@ -262,12 +282,10 @@ export const useWorkflowStore = create<WorkflowState>()(
 
       // Upload workflow
       uploadWorkflow: (json, platform) => {
-        // Sanitize credentials before storing
         const sanitizedJson = sanitizeCredentials(json)
-
         const jsonString = JSON.stringify(sanitizedJson, null, 2)
 
-        set({
+        set((state) => ({
           sourceJson: jsonString,
           parsedWorkflow: sanitizedJson,
           sourcePlatform: platform,
@@ -276,9 +294,9 @@ export const useWorkflowStore = create<WorkflowState>()(
           conversionLogs: [],
           debugData: null,
           activeTab: "editor",
-        })
+          recentUploads: [json.name, ...state.recentUploads].slice(0, 10),
+        }))
 
-        // Auto-convert if enabled
         const state = get()
         if (state.settings.autoConvert) {
           setTimeout(() => {
@@ -287,7 +305,7 @@ export const useWorkflowStore = create<WorkflowState>()(
         }
       },
       // Add a function to update stub nodes
-      setStubNodes: (nodes) => set({ stubNodes: nodes }),
+      setStubNodes: (nodes: any[]) => set({ stubNodes: nodes }),
 
       // Add these to the store actions
       setParameterReviewData: (data) => set({ parameterReviewData: data }),
@@ -302,6 +320,8 @@ export const useWorkflowStore = create<WorkflowState>()(
           }
           return { parameterReviewData: updatedData }
         }),
+
+      setRecentUploads: (uploads: string[]) => set({ recentUploads: uploads }),
     }),
     {
       name: "workflow-storage",

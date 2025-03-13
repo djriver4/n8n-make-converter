@@ -1,4 +1,4 @@
-import { convertWorkflow } from "@/lib/converter"
+import { convertWorkflow } from "../../lib/converter"
 import { basicN8nWorkflow, complexN8nWorkflow } from "../fixtures/n8n-workflows"
 import { basicMakeWorkflow } from "../fixtures/make-workflows"
 import { describe, it, expect } from "@jest/globals"

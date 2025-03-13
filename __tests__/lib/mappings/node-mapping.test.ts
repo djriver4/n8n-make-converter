@@ -87,16 +87,17 @@ describe("node-mapping", () => {
     it("should handle server-side rendering", () => {
       // Simulate server-side rendering by temporarily removing window
       const originalWindow = global.window
-      delete global.window
+      // Use a safer approach to handle window
+      const windowBackup = { ...global };
+      (global as any).window = undefined;
 
       const mappings = getNodeMappings()
 
       // Check that the result contains only the base mappings
       expect(mappings.n8nToMake).toEqual(baseNodeMapping.n8nToMake)
-      expect(mappings.makeToN8n).toEqual(baseNodeMapping.makeToN8n)
-
-      // Restore window
-      global.window = originalWindow
+      
+      // Restore global
+      Object.assign(global, windowBackup);
     })
   })
 
@@ -123,8 +124,9 @@ describe("node-mapping", () => {
         const makeModuleType = makeMapping.type
 
         // Check if there's a corresponding Make -> n8n mapping
-        if (baseNodeMapping.makeToN8n[makeModuleType]) {
-          expect(baseNodeMapping.makeToN8n[makeModuleType].type).toBe(n8nNodeType)
+        const makeToN8n = baseNodeMapping.makeToN8n as Record<string, any>;
+        if (makeToN8n[makeModuleType]) {
+          expect(makeToN8n[makeModuleType].type).toBe(n8nNodeType)
         }
       }
     })

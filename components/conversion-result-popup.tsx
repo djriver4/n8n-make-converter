@@ -15,8 +15,8 @@ interface ConversionResultPopupProps {
   isOpen: boolean
   onClose: () => void
   convertedJson: string
-  sourcePlatform: string
-  targetPlatform: string
+  sourcePlatform: "n8n" | "make" | null
+  targetPlatform: "n8n" | "make" | null
   conversionTime?: number
   nodeCount?: number
 }
@@ -30,8 +30,12 @@ export function ConversionResultPopup({
   conversionTime,
   nodeCount,
 }: ConversionResultPopupProps) {
-  const { copied, handleCopy } = useCopyToClipboard(convertedJson)
-  const handleDownload = useDownload(convertedJson, targetPlatform)
+  if (!isOpen) {
+    return null;
+  }
+  
+  const { copied, handleCopy } = useCopyToClipboard(convertedJson || "")
+  const handleDownload = useDownload(convertedJson || "", targetPlatform || "unknown")
 
   const { memoizedConvertedJson, error } = useMemo(() => {
     if (!convertedJson || convertedJson.trim() === "") {
@@ -53,10 +57,10 @@ export function ConversionResultPopup({
         <DialogHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <div className="flex flex-col gap-1.5">
             <DialogTitle>Converted Workflow JSON</DialogTitle>
-            <p className="text-sm text-muted-foreground">Ready to import into {targetPlatform}</p>
+            <p className="text-sm text-muted-foreground">Ready to import into {targetPlatform || "the target platform"}</p>
           </div>
           <Badge variant="outline" className="text-sm">
-            {sourcePlatform} <ArrowRight className="mx-1 h-3 w-3" /> {targetPlatform}
+            {sourcePlatform || "Unknown"} <ArrowRight className="mx-1 h-3 w-3" /> {targetPlatform || "Unknown"}
           </Badge>
         </DialogHeader>
 
@@ -67,7 +71,7 @@ export function ConversionResultPopup({
             <AlertDescription>{error}. Please try the conversion again or check the source workflow.</AlertDescription>
           </Alert>
         ) : (
-          <JsonViewer json={memoizedConvertedJson} platform={targetPlatform} />
+          <JsonViewer json={memoizedConvertedJson} platform={targetPlatform || "unknown"} />
         )}
 
         <DialogFooter className="flex justify-between items-center pt-4">

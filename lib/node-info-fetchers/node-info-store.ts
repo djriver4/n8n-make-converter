@@ -61,7 +61,7 @@ class NodeInfoManager {
         const githubToken = process.env.GITHUB_TOKEN
         
         // Fetch from GitHub
-        const nodes = await fetchNodesFromGitHub(githubToken)
+        const nodes = await fetchNodesFromGitHub()
         
         // Update store
         this.store.nodes = { ...this.store.nodes, ...nodes }

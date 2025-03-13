@@ -57,7 +57,19 @@ class PluginRegistry {
     for (const plugin of this.plugins.values()) {
       if (typeof plugin[hookName] === "function") {
         // Execute the hook and update the result
-        result = plugin[hookName]!(...[result, ...params.slice(1)])
+        // Handle each hook type separately to avoid spread operator issues
+        if (hookName === "beforeConversion" || hookName === "afterConversion") {
+          // These hooks take workflow and direction
+          const workflow = result;
+          const direction = params[1];
+          result = plugin[hookName](workflow, direction);
+        } else if (hookName === "afterNodeMapping") {
+          // This hook takes sourceNode, targetNode, and direction
+          const sourceNode = result;
+          const targetNode = params[1];
+          const direction = params[2];
+          result = plugin[hookName](sourceNode, targetNode, direction);
+        }
       }
     }
 

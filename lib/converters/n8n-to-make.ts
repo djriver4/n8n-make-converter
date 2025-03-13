@@ -553,7 +553,7 @@ export async function n8nToMake(
       const moduleType = (NODE_TYPE_MAPPING as Record<string, string>)[n8nNode.type] || "unknown:module"
 
       // Check if we have a mapping for this node type
-      const baseMapping = nodeMapping.n8nToMake[n8nNode.type]
+      const baseMapping = (nodeMapping.n8nToMake as Record<string, any>)[n8nNode.type]
       const pluginMapping = pluginMappings[n8nNode.type as keyof typeof pluginMappings]
       const hasMapping = !!baseMapping || !!pluginMapping
       const mappingSource = pluginMapping ? "plugin" : baseMapping ? "base" : null
@@ -623,7 +623,7 @@ export async function n8nToMake(
 
       // Track the mapping in debug
       if (debugTracker && debugTracker.trackNodeMapping) {
-        debugTracker.trackNodeMapping(n8nNode, makeModule, hasMapping, !hasMapping, mappingSource)
+        debugTracker.trackNodeMapping(n8nNode, makeModule, hasMapping, !hasMapping, mappingSource as string | undefined)
 
         // Track parameter mappings
         if (hasMapping) {
@@ -930,7 +930,7 @@ export async function n8nToMake(
 
   function mapNodeToModule(node: any, moduleId: number) {
     // Check if we have a mapping for this node type
-    const mapping = combinedMappings[node.type]
+    const mapping = (combinedMappings as Record<string, any>)[node.type]
     
     if (!mapping) {
       // No mapping found

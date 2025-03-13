@@ -8,9 +8,54 @@ import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
 import { Check, X, AlertTriangle, ChevronRight, AlertCircle, Info } from "lucide-react"
 import { getPluginRegistry } from "@/lib/plugin-registry"
+import { ReactNode } from "react"
+
+// Define more specific types for debug data
+interface NodeMappingDetail {
+  sourceId: string;
+  sourceName: string;
+  sourceType: string;
+  targetId: string;
+  targetType: string;
+  success: boolean;
+  isStub: boolean;
+  mappingStatus: 'full' | 'partial' | 'failed' | 'stub';
+  warnings: string[];
+  parameterMappings: {
+    source: string;
+    target: string;
+    success: boolean;
+  }[];
+  unmappedParameters: string[];
+  pluginSource?: string;
+}
+
+interface DebugSummary {
+  nodeCount: number;
+  successfulNodes: number;
+  partialNodes: number;
+  failedNodes: number;
+  stubNodes: number;
+  warningCount: number;
+  unmappedParamsCount: number;
+  successRate: number;
+  conversionTime?: number;
+  pluginUsage?: Record<string, number>;
+}
+
+interface ConversionLog {
+  type: 'info' | 'warning' | 'error';
+  message: string;
+}
+
+interface DebugData {
+  summary: DebugSummary;
+  nodes: Record<string, NodeMappingDetail>;
+  logs: ConversionLog[];
+}
 
 type DebugPanelProps = {
-  debugData: any
+  debugData: DebugData | null;
 }
 
 export function DebugPanel({ debugData }: DebugPanelProps) {
@@ -144,7 +189,7 @@ export function DebugPanel({ debugData }: DebugPanelProps) {
 
           <TabsContent value="nodes" className="p-4 overflow-auto max-h-[500px]">
             <Accordion type="multiple" className="space-y-2">
-              {Object.values(nodes).map((node: any) => (
+              {Object.values(nodes).map((node: NodeMappingDetail) => (
                 <AccordionItem
                   key={node.sourceId}
                   value={node.sourceId}
@@ -199,7 +244,7 @@ export function DebugPanel({ debugData }: DebugPanelProps) {
                       <div className="mb-3">
                         <h4 className="text-sm font-medium mb-1">Warnings</h4>
                         <ul className="text-sm space-y-1">
-                          {node.warnings.map((warning, i) => (
+                          {node.warnings.map((warning: string, i: number) => (
                             <li key={i} className="flex items-start gap-2">
                               <AlertTriangle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
                               <span>{warning}</span>
@@ -212,7 +257,7 @@ export function DebugPanel({ debugData }: DebugPanelProps) {
                     <h4 className="text-sm font-medium mb-1">Parameter Mappings</h4>
                     <div className="space-y-1">
                       {node.parameterMappings.length > 0 ? (
-                        node.parameterMappings.map((param, i) => (
+                        node.parameterMappings.map((param: { source: string; target: string; success: boolean }, i: number) => (
                           <div key={i} className="text-sm flex items-start gap-2">
                             {param.success ? (
                               <Check className="h-4 w-4 text-green-600 mt-0.5 flex-shrink-0" />
@@ -262,7 +307,7 @@ export function DebugPanel({ debugData }: DebugPanelProps) {
                           </div>
                         </div>
                         <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-200">
-                          {count}
+                          {String(count)}
                         </Badge>
                       </div>
                     </div>
@@ -291,7 +336,7 @@ export function DebugPanel({ debugData }: DebugPanelProps) {
 
           <TabsContent value="logs" className="p-4 overflow-auto max-h-[500px]">
             <div className="space-y-2">
-              {logs.map((log, index) => (
+              {logs.map((log: ConversionLog, index: number) => (
                 <div
                   key={index}
                   className={`p-3 rounded-md text-sm flex items-start gap-2 ${

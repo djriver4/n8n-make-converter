@@ -1,6 +1,6 @@
-import { makeToN8n } from '@/lib/converters/make-to-n8n';
+import { makeToN8n } from '../../../lib/converters/make-to-n8n';
 import { loadFixture, compareWorkflows, validateParameterConversion } from '../../utils/test-helpers';
-import { DebugTracker } from '@/lib/debug-tracker';
+import { DebugTracker } from '../../../lib/debug-tracker';
 
 // Mock validateParameterConversion for the second test
 jest.mock('../../utils/test-helpers', () => {

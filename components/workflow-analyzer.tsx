@@ -134,11 +134,6 @@ export function WorkflowAnalyzer({ workflow, onAnalysisComplete }: WorkflowAnaly
       })
       
       setOpenNodes(initialOpenState)
-
-      // Notify parent component
-      if (onAnalysisComplete) {
-        onAnalysisComplete(analysisResults)
-      }
     }
   }
 
@@ -208,7 +203,7 @@ export function WorkflowAnalyzer({ workflow, onAnalysisComplete }: WorkflowAnaly
       <div className="flex-grow overflow-auto">
         <div className="h-full">
           {securityWarning && (
-            <Alert variant="warning" className="mb-4">
+            <Alert className="mb-4">
               <AlertTriangle className="h-4 w-4" />
               <AlertTitle>Security Warning</AlertTitle>
               <AlertDescription>{securityWarning}</AlertDescription>

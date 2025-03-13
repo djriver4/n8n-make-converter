@@ -24,22 +24,44 @@ const MonacoEditor = dynamic(() => import("@monaco-editor/react"), {
   ),
 })
 
+type LogEntry = {
+  type: "info" | "warning" | "error";
+  message: string;
+};
+
 type ConversionResultsProps = {
-  onClose: () => void
+  onClose: () => void;
+  convertedJson?: string;
+  targetPlatform?: "n8n" | "make" | null;
+  conversionLogs?: LogEntry[];
 }
 
-export function ConversionResults({ onClose }: ConversionResultsProps) {
-  const { convertedJson, sourcePlatform, targetPlatform } = useWorkflowStore()
+export function ConversionResults({ 
+  onClose, 
+  convertedJson: propConvertedJson, 
+  targetPlatform: propTargetPlatform,
+  conversionLogs: propConversionLogs 
+}: ConversionResultsProps) {
+  const storeValues = useWorkflowStore();
+  
+  // Use props if provided, otherwise fall back to store values
+  const convertedJson = propConvertedJson || storeValues.convertedJson;
+  const targetPlatform = propTargetPlatform || storeValues.targetPlatform;
+  const sourcePlatform = storeValues.sourcePlatform;
 
   const [copied, setCopied] = useState(false)
 
   const handleCopy = () => {
+    if (!convertedJson) return;
+    
     navigator.clipboard.writeText(convertedJson)
     setCopied(true)
     setTimeout(() => setCopied(false), 2000)
   }
 
   const handleDownload = () => {
+    if (!convertedJson || !targetPlatform) return;
+    
     const blob = new Blob([convertedJson], { type: "application/json" })
     const url = URL.createObjectURL(blob)
     const a = document.createElement("a")
@@ -60,7 +82,7 @@ export function ConversionResults({ onClose }: ConversionResultsProps) {
     readOnly: true,
   }
 
-  if (!convertedJson || !sourcePlatform || !targetPlatform) {
+  if (!convertedJson || !targetPlatform) {
     return null // or return a loading state or error message
   }
 
@@ -71,13 +93,13 @@ export function ConversionResults({ onClose }: ConversionResultsProps) {
           <DialogTitle className="flex items-center justify-between w-full">
             <span>Converted Workflow JSON</span>
             <Badge variant="outline" className="px-3 py-1.5 text-sm font-medium bg-slate-100 dark:bg-slate-800">
-              {sourcePlatform}
+              {sourcePlatform || "Unknown"}
               <ArrowRight className="h-3 w-3 mx-2" />
               {targetPlatform}
             </Badge>
           </DialogTitle>
           <DialogDescription>
-            Your workflow has been converted. Review the results below. Ready to import into make
+            Your workflow has been converted. Review the results below.
           </DialogDescription>
         </DialogHeader>
 

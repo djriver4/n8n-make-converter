@@ -427,7 +427,7 @@ export async function makeToN8n(
 				// Add __stubInfo to the Tools node
 				const toolsNode = testWorkflow.nodes.find(node => node.name === "Tools");
 				if (toolsNode) {
-					toolsNode.parameters.__stubInfo = {
+					(toolsNode.parameters as Record<string, any>).__stubInfo = {
 						originalModuleType: "tools",
 						needsReview: true,
 						reason: "Complex expression needs review"
@@ -537,10 +537,10 @@ export async function makeToN8n(
 
 			// Check if we have a known mapping definition
 			const baseMapping = module.module
-				? baseNodeMappings[module.module]
+				? (baseNodeMappings as Record<string, any>)[module.module]
 				: undefined;
 			const pluginMapping = module.module
-				? pluginNodeMappings[module.module]
+				? (pluginNodeMappings as Record<string, any>)[module.module]
 				: undefined;
 			const hasMapping = !!baseMapping || !!pluginMapping;
 
@@ -581,7 +581,7 @@ export async function makeToN8n(
 								def.parameterMap
 							)) {
 								if (module.mapper[makeParam] !== undefined) {
-									n8nNode.parameters[n8nParam] = module.mapper[makeParam];
+									n8nNode.parameters[n8nParam as string] = module.mapper[makeParam];
 								}
 							}
 						} else {

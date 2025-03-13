@@ -1,4 +1,4 @@
-import type { NodeMappingDefinition } from "../plugins/plugin-interface"
+import type { NodeMappingDefinition } from "../mappings/node-mapping"
 
 export interface UserMapping {
   id: string

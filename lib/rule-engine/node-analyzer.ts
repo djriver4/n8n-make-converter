@@ -122,18 +122,20 @@ export class NodeAnalyzer {
 
     // Handle n8n workflows (which have nodes array)
     if (workflow.nodes && Array.isArray(workflow.nodes)) {
+      console.log("Analyzing n8n workflow with", workflow.nodes.length, "nodes");
       return workflow.nodes.map((node: any) => this.analyzeNode(node, workflow));
     }
 
     // Handle Make.com workflows (which have flow array)
     if (workflow.flow && Array.isArray(workflow.flow)) {
+      console.log("Analyzing Make.com workflow with", workflow.flow.length, "modules");
       return workflow.flow.map((module: any) => {
         // Adapt Make.com modules to be compatible with the analyzer
         const adaptedNode = {
           id: module.id,
           name: module.name || `Module ${module.id}`,
-          type: module.type,
-          parameters: module.parameters || {},
+          type: module.type || module.module, // Use module if type is not available
+          parameters: module.parameters || module.mapper || {}, // Use mapper if parameters not available
           credentials: module.__IMTCONN__ ? { __IMTCONN__: module.__IMTCONN__ } : {}
         };
         return this.analyzeNode(adaptedNode, workflow);
