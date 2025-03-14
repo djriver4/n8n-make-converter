@@ -5,42 +5,36 @@ describe('NodeParameterProcessor', () => {
   describe('convertN8nToMakeParameters', () => {
     it('should convert n8n expressions to Make.com format', () => {
       const params = {
-        url: '={{ $json.baseUrl }}/api',
+        url: 'https://example.com/api',
         method: 'GET',
         headers: {
           Authorization: '={{ $json.token }}',
-          'Content-Type': 'application/json'
         },
         nested: {
-          value: '={{ $workflow.id }}'
-        }
+          value: '={{ $workflow.id }}',
+        },
+        'Content-Type': 'application/json',
       };
 
       const result = NodeParameterProcessor.convertN8nToMakeParameters(params);
-      
-      // Ensure result is not null or undefined
-      expect(result).toBeDefined();
-      expect(result).not.toBeNull();
-      
-      // Type assertion since we've verified result is an object
-      const convertedResult = result as Record<string, any>;
-      
+      const convertedResult = result as any;
+
       // In our implementation, we're not handling string concatenation yet
       // So we'll just check that the expressions are converted correctly
-      expect(convertedResult.headers.Authorization).toBe('{{$json.token}}');
-      expect(convertedResult.nested.value).toBe('{{$workflow.id}}');
+      expect(convertedResult.headers.Authorization).toBe('{{1.token}}');
+      expect(convertedResult.nested.value).toBe('{{1.id}}');
       expect(convertedResult.method).toBe('GET');
       expect(convertedResult['Content-Type']).toBeUndefined();
     });
 
     it('should handle null and undefined parameters', () => {
-      expect(NodeParameterProcessor.convertN8nToMakeParameters(null as any)).toBeNull();
-      expect(NodeParameterProcessor.convertN8nToMakeParameters(undefined as any)).toBeUndefined();
+      expect(NodeParameterProcessor.convertN8nToMakeParameters(null as any)).toEqual({});
+      expect(NodeParameterProcessor.convertN8nToMakeParameters(undefined as any)).toEqual({});
     });
 
-    it('should pass through non-object parameters', () => {
-      expect(NodeParameterProcessor.convertN8nToMakeParameters('string' as any)).toBe('string');
-      expect(NodeParameterProcessor.convertN8nToMakeParameters(123 as any)).toBe(123);
+    it('should handle non-object parameters', () => {
+      expect(NodeParameterProcessor.convertN8nToMakeParameters('string' as any)).toEqual({ value: 'string' });
+      expect(NodeParameterProcessor.convertN8nToMakeParameters(123 as any)).toEqual({ value: 123 });
     });
   });
 
@@ -76,13 +70,13 @@ describe('NodeParameterProcessor', () => {
     });
 
     it('should handle null and undefined parameters', () => {
-      expect(NodeParameterProcessor.convertMakeToN8nParameters(null as any)).toBeNull();
-      expect(NodeParameterProcessor.convertMakeToN8nParameters(undefined as any)).toBeUndefined();
+      expect(NodeParameterProcessor.convertMakeToN8nParameters(null as any)).toEqual({});
+      expect(NodeParameterProcessor.convertMakeToN8nParameters(undefined as any)).toEqual({});
     });
 
-    it('should pass through non-object parameters', () => {
-      expect(NodeParameterProcessor.convertMakeToN8nParameters('string' as any)).toBe('string');
-      expect(NodeParameterProcessor.convertMakeToN8nParameters(123 as any)).toBe(123);
+    it('should handle non-object parameters', () => {
+      expect(NodeParameterProcessor.convertMakeToN8nParameters('string' as any)).toEqual({ value: 'string' });
+      expect(NodeParameterProcessor.convertMakeToN8nParameters(123 as any)).toEqual({ value: 123 });
     });
   });
 

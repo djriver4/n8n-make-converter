@@ -20,15 +20,14 @@ export class NodeParameterProcessor {
    * 
    * @param params - The n8n parameters to convert
    * @param context - Optional context for expression evaluation
-   * @returns Converted parameters
+   * @returns Converted parameters - never null or undefined
    */
   static convertN8nToMakeParameters(
     params: Record<string, any> | null | undefined, 
     context?: ExpressionContext
-  ): Record<string, any> | null | undefined {
-    if (params === null) return null;
-    if (params === undefined) return undefined;
-    if (typeof params !== 'object' || Array.isArray(params)) return params;
+  ): Record<string, any> {
+    if (params === null || params === undefined) return {};
+    if (typeof params !== 'object' || Array.isArray(params)) return { value: params };
     
     const result: Record<string, any> = {};
     
@@ -46,15 +45,14 @@ export class NodeParameterProcessor {
    * 
    * @param params - The Make.com parameters to convert
    * @param context - Optional context for expression evaluation
-   * @returns Converted parameters
+   * @returns Converted parameters - never null or undefined
    */
   static convertMakeToN8nParameters(
     params: Record<string, any> | null | undefined, 
     context?: ExpressionContext
-  ): Record<string, any> | null | undefined {
-    if (params === null) return null;
-    if (params === undefined) return undefined;
-    if (typeof params !== 'object' || Array.isArray(params)) return params;
+  ): Record<string, any> {
+    if (params === null || params === undefined) return {};
+    if (typeof params !== 'object' || Array.isArray(params)) return { value: params };
     
     const result: Record<string, any> = {};
     
@@ -81,10 +79,25 @@ export class NodeParameterProcessor {
     }
     
     if (typeof value === 'string') {
+      // Check for n8n expressions and convert to Make.com format
       if (value.startsWith('={{') && value.endsWith('}}')) {
         // Extract the expression content
         const content = value.slice(3, -2).trim();
-        return `{{${content}}}`;
+        // Replace $json references with numeric references (1.xxx)
+        const convertedJson = content.replace(/\$json\.(\w+)/g, '1.$1');
+        // Replace $workflow references with numeric references (1.xxx)
+        const converted = convertedJson.replace(/\$workflow\.(\w+)/g, '1.$1');
+        return `{{${converted}}}`;
+      } else if (value.includes('={{') && value.includes('}}')) {
+        // Handle embedded expressions
+        return value.replace(/={{(.+?)}}/g, (match, content) => {
+          const contentTrimmed = content.trim();
+          // Replace $json references with numeric references (1.xxx)
+          const convertedJson = contentTrimmed.replace(/\$json\.(\w+)/g, '1.$1');
+          // Replace $workflow references with numeric references (1.xxx)
+          const converted = convertedJson.replace(/\$workflow\.(\w+)/g, '1.$1');
+          return `{{${converted}}}`;
+        });
       }
       return value;
     }
@@ -119,10 +132,37 @@ export class NodeParameterProcessor {
     }
     
     if (typeof value === 'string') {
+      // Check for Make.com expressions and convert to n8n format
       if (value.startsWith('{{') && value.endsWith('}}')) {
         // Extract the expression content
         const content = value.slice(2, -2).trim();
-        return `={{ ${content} }}`;
+        
+        // Determine if this is a workflow reference by context or naming conventions
+        if (content.match(/1\.(id|active|ownerId|createdAt|updatedAt)/) && !content.match(/1\.name/)) {
+          // Likely a workflow property (but exclude name as it's commonly used for data)
+          const converted = content.replace(/1\.(\w+)/g, '$workflow.$1');
+          return `={{ ${converted} }}`;
+        } else {
+          // Default to json reference or handle 'name' specially
+          const converted = content.replace(/1\.(\w+)/g, '$json.$1');
+          return `={{ ${converted} }}`;
+        }
+      } else if (value.includes('{{') && value.includes('}}')) {
+        // Handle embedded expressions
+        return value.replace(/{{(.+?)}}/g, (match, content) => {
+          const contentTrimmed = content.trim();
+          
+          // Determine if this is a workflow reference by context or naming conventions
+          if (contentTrimmed.match(/1\.(id|active|ownerId|createdAt|updatedAt)/) && !contentTrimmed.match(/1\.name/)) {
+            // Likely a workflow property
+            const converted = contentTrimmed.replace(/1\.(\w+)/g, '$workflow.$1');
+            return `={{ ${converted} }}`;
+          } else {
+            // Default to json reference
+            const converted = contentTrimmed.replace(/1\.(\w+)/g, '$json.$1');
+            return `={{ ${converted} }}`;
+          }
+        });
       }
       return value;
     }

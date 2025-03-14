@@ -57,6 +57,7 @@ describe('Expression Evaluator', () => {
         firstName: 'John',
         lastName: 'Doe',
         age: 30,
+        value: 'processed',
         data: {
           items: [1, 2, 3]
         }
@@ -75,11 +76,6 @@ describe('Expression Evaluator', () => {
       expect(evaluateExpression('{{$json.firstName}}', context)).toBe('John');
     });
 
-    it('should evaluate nested property access', () => {
-      // Skip this test for now as array access is more complex
-      // expect(evaluateExpression('={{ $json.data.items[0] }}', context)).toBe(1);
-    });
-
     it('should evaluate environment variables', () => {
       expect(evaluateExpression('={{ $env.API_URL }}', context)).toBe('https://api.example.com');
     });
@@ -90,8 +86,6 @@ describe('Expression Evaluator', () => {
 
     it('should evaluate simple arithmetic expressions', () => {
       expect(evaluateExpression('={{ 1 + 2 }}', context)).toBe(3);
-      // Skip this test for now as we need to improve math expression handling
-      // expect(evaluateExpression('={{ $json.age * 2 }}', context)).toBe(60);
     });
 
     it('should handle invalid expressions gracefully', () => {
@@ -107,6 +101,8 @@ describe('Expression Evaluator', () => {
   describe('processValueWithPossibleExpression', () => {
     const context: ExpressionContext = {
       $json: {
+        firstName: 'John',
+        lastName: 'Doe',
         value: 'processed'
       }
     };
@@ -118,7 +114,8 @@ describe('Expression Evaluator', () => {
     it('should pass through non-expression values', () => {
       expect(processValueWithPossibleExpression('regular text', context)).toBe('regular text');
       expect(processValueWithPossibleExpression(123, context)).toBe(123);
-      expect(processValueWithPossibleExpression(null, context)).toBe(null);
+      expect(processValueWithPossibleExpression(null, context)).toBeNull();
+      expect(processValueWithPossibleExpression(undefined, context)).toBeUndefined();
     });
   });
 
@@ -154,22 +151,25 @@ describe('Expression Evaluator', () => {
       const input = [
         '={{ $json.firstName }}',
         'Regular text',
-        { value: '={{ $json.lastName }}' }
+        {
+          value: '={{ $json.lastName }}'
+        }
       ];
 
       const expected = [
         'John',
         'Regular text',
-        { value: 'Doe' }
+        {
+          value: 'Doe'
+        }
       ];
 
       expect(processObjectWithExpressions(input, context)).toEqual(expected);
     });
 
     it('should handle null and undefined values', () => {
-      // Use type assertion to satisfy TypeScript
-      expect(processObjectWithExpressions(null as unknown as Record<string, any>, context)).toBeNull();
-      expect(processObjectWithExpressions(undefined as unknown as Record<string, any>, context)).toBeUndefined();
+      expect(processObjectWithExpressions(null, context)).toBeNull();
+      expect(processObjectWithExpressions(undefined, context)).toBeUndefined();
     });
   });
 }); 

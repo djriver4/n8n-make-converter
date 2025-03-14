@@ -18,7 +18,8 @@ import {
   N8nWorkflow, 
   MakeWorkflow,
   N8nConnection,
-  MakeRoute
+  MakeRoute,
+  ParameterValue
 } from "./node-mappings/node-types";
 // Import validation utilities
 import { validateMakeWorkflow, validateN8nWorkflow } from "./utils/validate-workflow";
@@ -61,6 +62,17 @@ interface ConversionOptions {
   copyNonMappedParameters?: boolean;
   // Other options
   [key: string]: any;
+}
+
+interface ExpressionReviewInfo {
+  nodeType: string;
+  reason: string;
+}
+
+interface ConversionContext {
+  mappingDatabase?: NodeMappingDatabase;
+  evaluateExpressions?: boolean;
+  expressionContext?: Record<string, any>;
 }
 
 /**
@@ -245,7 +257,8 @@ export class WorkflowConverter {
     // Identify parameters that may need manual review
     const expressionsForReview = NodeParameterProcessor.identifyExpressionsForReview(n8nWorkflow);
     for (const [path, info] of Object.entries(expressionsForReview)) {
-      parametersNeedingReview.push(`${info.nodeType} - ${path}: ${info.reason}`);
+      const reviewInfo = info as unknown as ExpressionReviewInfo;
+      parametersNeedingReview.push(`${reviewInfo.nodeType} - ${path}: ${reviewInfo.reason}`);
     }
     
     return {
@@ -447,7 +460,8 @@ export class WorkflowConverter {
     // Identify parameters that may need manual review
     const expressionsForReview = NodeParameterProcessor.identifyExpressionsForReview(makeWorkflow);
     for (const [path, info] of Object.entries(expressionsForReview)) {
-      parametersNeedingReview.push(`${info.nodeType} - ${path}: ${info.reason}`);
+      const reviewInfo = info as unknown as ExpressionReviewInfo;
+      parametersNeedingReview.push(`${reviewInfo.nodeType} - ${path}: ${reviewInfo.reason}`);
     }
     
     return {
@@ -459,6 +473,125 @@ export class WorkflowConverter {
       isValidInput,
       debug: options.debug ? debug : undefined
     };
+  }
+
+  private convertN8nNodeToMakeModule(n8nNode: N8nNode, context: ConversionContext): MakeModule {
+    // Process any expressions in the parameters if needed
+    if (context.evaluateExpressions && context.expressionContext && n8nNode.parameters) {
+      n8nNode.parameters = NodeParameterProcessor.evaluateExpressions(
+        n8nNode.parameters,
+        context.expressionContext
+      );
+    }
+    
+    try {
+      // Load the mapping database if not already passed in context
+      const mappingDatabase = context.mappingDatabase || NodeMappingLoader.getInstance().getMappings();
+      
+      // Create a NodeMapper instance
+      const nodeMapper = new NodeMapper(mappingDatabase);
+      
+      // Use the NodeMapper to convert the node
+      const result = nodeMapper.convertN8nNodeToMakeModule(n8nNode);
+      const makeModule = result.node as MakeModule;
+      
+      // Convert parameters
+      const convertedParams = NodeParameterProcessor.convertN8nToMakeParameters(n8nNode.parameters);
+      makeModule.parameters = convertedParams;
+      
+      return makeModule;
+    } catch (error) {
+      logger.error(`Error converting n8n node to Make module: ${error instanceof Error ? error.message : String(error)}`);
+      
+      // Return a minimal Make module as a fallback
+      return {
+        id: parseInt(n8nNode.id, 10) || 1, // Convert string id to number
+        name: n8nNode.name,
+        type: n8nNode.type,
+        parameters: n8nNode.parameters || {}
+      };
+    }
+  }
+
+  private convertMakeModuleToN8nNode(makeModule: MakeModule, context: ConversionContext): N8nNode {
+    try {
+      // Load the mapping database if not already passed in context
+      const mappingDatabase = context.mappingDatabase || NodeMappingLoader.getInstance().getMappings();
+      
+      // Create a NodeMapper instance
+      const nodeMapper = new NodeMapper(mappingDatabase);
+      
+      // Use the NodeMapper to convert the module
+      const result = nodeMapper.convertMakeModuleToN8nNode(makeModule);
+      const n8nNode = result.node as N8nNode;
+      
+      // Convert parameters
+      const convertedParams = NodeParameterProcessor.convertMakeToN8nParameters(makeModule.parameters);
+      n8nNode.parameters = convertedParams;
+      
+      return n8nNode;
+    } catch (error) {
+      logger.error(`Error converting Make module to n8n node: ${error instanceof Error ? error.message : String(error)}`);
+      
+      // Return a minimal n8n node as a fallback
+      return {
+        id: String(makeModule.id),
+        name: makeModule.name,
+        type: makeModule.type,
+        position: [0, 0],
+        parameters: makeModule.parameters || {}
+      };
+    }
+  }
+
+  private ensureValidParameters(params: Record<string, any>): Record<string, any> {
+    const validParams: Record<string, any> = {};
+
+    for (const [key, value] of Object.entries(params)) {
+      if (value === null || value === undefined) {
+        validParams[key] = null;
+      } else if (
+        typeof value === 'string' ||
+        typeof value === 'number' ||
+        typeof value === 'boolean'
+      ) {
+        validParams[key] = value;
+      } else if (Array.isArray(value)) {
+        validParams[key] = value.map(item => 
+          this.ensureValidParameterValue(item)
+        );
+      } else if (typeof value === 'object') {
+        validParams[key] = this.ensureValidParameters(value);
+      } else {
+        validParams[key] = String(value);
+      }
+    }
+
+    return validParams;
+  }
+
+  private ensureValidParameterValue(value: any): any {
+    if (value === null || value === undefined) {
+      return null;
+    }
+
+    if (
+      typeof value === 'string' ||
+      typeof value === 'number' ||
+      typeof value === 'boolean'
+    ) {
+      return value;
+    }
+
+    if (Array.isArray(value)) {
+      return value.map(item => this.ensureValidParameterValue(item));
+    }
+
+    if (typeof value === 'object') {
+      return this.ensureValidParameters(value);
+    }
+
+    return String(value);
   }
 }
 

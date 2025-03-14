@@ -221,9 +221,7 @@ class NodeExtractor {
           
           if (nameMatch) {
             parameters.push({
-              n8nName: nameMatch[1],
-              makeName: nameMatch[1],
-              type: typeMatch ? typeMatch[1] : 'string',
+              targetPath: nameMatch[1],
               required: requiredMatch ? requiredMatch[1] === 'true' : false,
               description: descMatch ? descMatch[1] : (displayNameMatch ? displayNameMatch[1] : '')
             });
@@ -254,18 +252,16 @@ class NodeExtractor {
       
       // Return the structured data
       return {
-        n8nNodeType: nodeType,
-        n8nDisplayName: displayName,
-        makeModuleId: fileName.toLowerCase(), // Simplified mapping - in reality would need manual adjustment
-        makeModuleName: serviceName,
-        n8nTypeCategory,
-        makeTypeCategory: 'App', // Default value, would need manual adjustment
-        description,
-        documentationUrl: {
-          n8n: documentationUrl,
-          make: '' // Would need manual adjustment
-        },
-        operations
+        source: 'n8n',
+        sourceNodeType: nodeType,
+        targetNodeType: fileName.toLowerCase(),
+        parameterMappings: {},  // Will be populated later with proper mappings
+        metadata: {
+          displayName: displayName,
+          description: `${serviceName} integration`,
+          version: '1.0.0',
+          tags: [n8nTypeCategory]
+        }
       };
     } catch (error) {
       log(`Error parsing node file ${filePath}: ${(error as Error).message}`, 'error');
