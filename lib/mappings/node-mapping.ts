@@ -42,6 +42,22 @@ export const BASE_NODE_MAPPING = {
       description: "Route workflows based on conditions",
       displayName: "Router"
     },
+    "n8n-nodes-base.function": {
+      type: "tools",
+      parameterMap: {
+        functionCode: "code"
+      },
+      description: "Execute custom JavaScript code",
+      displayName: "Function"
+    },
+    "n8n-nodes-base.jsonParse": {
+      type: "json",
+      parameterMap: {
+        property: "parsedObject"
+      },
+      description: "Parse JSON data",
+      displayName: "JSON Parse"
+    },
     "n8n-nodes-base.gmail": {
       type: "gmail:ActionSendEmail",
       parameterMap: {
@@ -135,6 +151,22 @@ export const BASE_NODE_MAPPING = {
       },
       description: "Route workflow execution based on conditions",
       displayName: "Router"
+    },
+    "tools": {
+      type: "n8n-nodes-base.function",
+      parameterMap: {
+        code: "functionCode"
+      },
+      description: "Execute custom JavaScript code",
+      displayName: "Function"
+    },
+    "json": {
+      type: "n8n-nodes-base.jsonParse",
+      parameterMap: {
+        parsedObject: "property"
+      },
+      description: "Parse JSON data",
+      displayName: "JSON Parse"
     },
     "gmail:ActionSendEmail": {
       type: "n8n-nodes-base.gmail",

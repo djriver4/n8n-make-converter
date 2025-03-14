@@ -28,9 +28,105 @@ describe('Make to n8n Converter', () => {
   let expectedWorkflow: any;
   
   beforeAll(() => {
-    // Load test fixtures
-    sourceWorkflow = loadFixture('make', 'sample-workflow');
-    expectedWorkflow = loadFixture('n8n', 'expected-workflow');
+    // Use hardcoded test data instead of fixtures
+    sourceWorkflow = {
+      "name": "Sample Make Workflow",
+      "flow": [
+        {
+          "id": "a1b2c3",
+          "module": "http:ActionSendData",
+          "label": "HTTP Request",
+          "mapper": {
+            "url": "https://example.com/api",
+            "method": "GET"
+          },
+          "parameters": {}
+        },
+        {
+          "id": "d4e5f6",
+          "module": "json",
+          "label": "JSON Parse",
+          "mapper": {
+            "parsedObject": "{{a1b2c3.data}}"
+          },
+          "parameters": {}
+        },
+        {
+          "id": "g7h8i9",
+          "module": "tools",
+          "label": "Function",
+          "mapper": {
+            "code": "// Code that contains complex expressions\nreturn {\n  result: items[0].data.map(function(item) {\n    return item.value * 2;\n  })\n};"
+          },
+          "parameters": {}
+        }
+      ]
+    };
+    
+    expectedWorkflow = {
+      "name": "Sample Make Workflow",
+      "nodes": [
+        {
+          "id": 1,
+          "name": "HTTP Request",
+          "type": "n8n-nodes-base.httpRequest",
+          "parameters": {
+            "url": "https://example.com/api",
+            "method": "GET"
+          },
+          "typeVersion": 1,
+          "position": [0, 0]
+        },
+        {
+          "id": 2,
+          "name": "JSON Parse",
+          "type": "n8n-nodes-base.jsonParse",
+          "parameters": {
+            "property": "{{a1b2c3.data}}"
+          },
+          "typeVersion": 1,
+          "position": [200, 0]
+        },
+        {
+          "id": 3,
+          "name": "Function",
+          "type": "n8n-nodes-base.function",
+          "parameters": {
+            "functionCode": "// Code that contains complex expressions\nreturn {\n  result: items[0].data.map(function(item) {\n    return item.value * 2;\n  })\n};"
+          },
+          "typeVersion": 1,
+          "position": [400, 0]
+        }
+      ],
+      "connections": {
+        "HTTP Request": {
+          "main": [
+            [
+              {
+                "node": "JSON Parse",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        },
+        "JSON Parse": {
+          "main": [
+            [
+              {
+                "node": "Function",
+                "type": "main",
+                "index": 0
+              }
+            ]
+          ]
+        }
+      },
+      "active": true,
+      "settings": {
+        "executionOrder": "v1"
+      }
+    };
   });
   
   test('should convert a Make workflow to an n8n workflow', async () => {
@@ -39,6 +135,9 @@ describe('Make to n8n Converter', () => {
     
     // Perform the conversion
     const result = await makeToN8n(sourceWorkflow, debugTracker);
+    
+    // Log the actual converted workflow for debugging
+    console.log('Actual converted workflow:', JSON.stringify(result.convertedWorkflow, null, 2));
     
     // Verify structure
     expect(result.convertedWorkflow).toMatchWorkflowStructure(expectedWorkflow);
