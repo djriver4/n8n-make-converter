@@ -1,0 +1,10 @@
+{
+  "name": "n8n-make-converter-test",
+  "version": "1.0.0",
+  "description": "Test script for n8n to Make.com workflow converter",
+  "main": "test-converter.js",
+  "type": "module",
+  "scripts": {
+    "test": "node test-converter.js"
+  }
+} 

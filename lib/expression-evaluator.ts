@@ -148,6 +148,73 @@ export function evaluateMathExpression(expression: string, context: Record<strin
 }
 
 /**
+ * Evaluates a string concatenation expression
+ * 
+ * @param expression - The expression to evaluate (e.g., "prefix" + $json.value)
+ * @param context - The context for variable substitution
+ * @returns The concatenated string
+ */
+export function evaluateStringConcatenation(expression: string, context: ExpressionContext = {}): string {
+  try {
+    // Check if the expression contains string concatenation
+    if (expression.includes('+') && (expression.includes('"') || expression.includes("'"))) {
+      // Split by + operator, but respect quotes
+      const parts = [];
+      let currentPart = '';
+      let inSingleQuote = false;
+      let inDoubleQuote = false;
+      
+      for (let i = 0; i < expression.length; i++) {
+        const char = expression[i];
+        
+        if (char === "'" && !inDoubleQuote) {
+          inSingleQuote = !inSingleQuote;
+          currentPart += char;
+        } else if (char === '"' && !inSingleQuote) {
+          inDoubleQuote = !inDoubleQuote;
+          currentPart += char;
+        } else if (char === '+' && !inSingleQuote && !inDoubleQuote) {
+          parts.push(currentPart.trim());
+          currentPart = '';
+        } else {
+          currentPart += char;
+        }
+      }
+      
+      if (currentPart) {
+        parts.push(currentPart.trim());
+      }
+      
+      // Evaluate each part
+      const evaluatedParts = parts.map(part => {
+        // If it's a quoted string, remove the quotes
+        if ((part.startsWith('"') && part.endsWith('"')) || 
+            (part.startsWith("'") && part.endsWith("'"))) {
+          return part.slice(1, -1);
+        }
+        
+        // If it's a variable reference, get its value
+        if (part.startsWith('$')) {
+          const value = getValueByPath(context, part);
+          return value !== undefined ? String(value) : '';
+        }
+        
+        // Otherwise, try to evaluate it as an expression
+        return String(evaluateExpression(part, context) || '');
+      });
+      
+      // Join the parts
+      return evaluatedParts.join('');
+    }
+    
+    return expression;
+  } catch (error) {
+    console.error(`Failed to evaluate string concatenation "${expression}":`, error);
+    return expression; // Return the original expression on error
+  }
+}
+
+/**
  * Evaluates an expression using the given context
  * 
  * @param expression - The expression to evaluate
@@ -163,6 +230,12 @@ export function evaluateExpression(expression: string, context: ExpressionContex
   }
   
   try {
+    // Check for string concatenation (e.g., "prefix" + $json.value)
+    if (extractedExpression.includes('+') && 
+        (extractedExpression.includes('"') || extractedExpression.includes("'"))) {
+      return evaluateStringConcatenation(extractedExpression, context);
+    }
+    
     // Direct variable access (e.g., $json.data)
     if (extractedExpression.match(/^\$[a-zA-Z0-9_]+\.[a-zA-Z0-9_\.\[\]]+$/)) {
       return getValueByPath(context, extractedExpression);

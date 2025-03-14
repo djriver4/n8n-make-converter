@@ -1,0 +1,73 @@
+
+> my-v0-project@0.1.0 dev
+> next dev
+
+ ⚠ Port 3000 is in use, trying 3001 instead.
+ ⚠ Port 3001 is in use, trying 3002 instead.
+   ▲ Next.js 15.1.0
+   - Local:        http://localhost:3002
+   - Network:      http://192.168.100.201:3002
+   - Experiments (use with caution):
+     · webpackBuildWorker
+     · parallelServerCompiles
+     · parallelServerBuildTraces
+
+ ✓ Starting...
+ ✓ Ready in 1438ms
+ ○ Compiling / ...
+ ⨯ ./lib/node-mappings/node-mapping-loader.ts:7:1
+Module not found: Can't resolve 'fs'
+   5 |  */
+   6 |
+>  7 | import fs from 'fs';
+     | ^
+   8 | import path from 'path';
+   9 | import { NodeMappingDatabase } from './schema';
+  10 | import logger from '../logger';
+
+https://nextjs.org/docs/messages/module-not-found
+
+Import trace for requested module:
+./lib/workflow-converter.ts
+./lib/converters/n8n-to-make.ts
+./lib/converter.ts
+./lib/store/store.ts
+./app/page.tsx
+ ⨯ ./lib/node-mappings/node-mapping-loader.ts:7:1
+Module not found: Can't resolve 'fs'
+   5 |  */
+   6 |
+>  7 | import fs from 'fs';
+     | ^
+   8 | import path from 'path';
+   9 | import { NodeMappingDatabase } from './schema';
+  10 | import logger from '../logger';
+
+https://nextjs.org/docs/messages/module-not-found
+
+Import trace for requested module:
+./lib/workflow-converter.ts
+./lib/converters/n8n-to-make.ts
+./lib/converter.ts
+./lib/store/store.ts
+./app/page.tsx
+ ⨯ ./lib/node-mappings/node-mapping-loader.ts:7:1
+Module not found: Can't resolve 'fs'
+   5 |  */
+   6 |
+>  7 | import fs from 'fs';
+     | ^
+   8 | import path from 'path';
+   9 | import { NodeMappingDatabase } from './schema';
+  10 | import logger from '../logger';
+
+https://nextjs.org/docs/messages/module-not-found
+
+Import trace for requested module:
+./lib/workflow-converter.ts
+./lib/converters/n8n-to-make.ts
+./lib/converter.ts
+./lib/store/store.ts
+./app/page.tsx
+ GET / 500 in 3138ms
+[?25h

@@ -26,6 +26,7 @@ export class NodeMapper {
    */
   constructor(mappingDatabase: NodeMappingDatabase) {
     this.mappingDatabase = mappingDatabase;
+    logger.info(`NodeMapper initialized with ${Object.keys(this.mappingDatabase.mappings || {}).length} mappings`);
   }
   
   /**
@@ -35,6 +36,13 @@ export class NodeMapper {
    * @returns The node mapping or undefined if not found
    */
   getNodeMappingByN8nType(n8nNodeType: string): NodeMapping | undefined {
+    // Check if mappings exist
+    if (!this.mappingDatabase.mappings) {
+      logger.warn('No mappings available in the mapping database');
+      return undefined;
+    }
+    
+    // Find the mapping by n8nNodeType
     return Object.values(this.mappingDatabase.mappings).find(
       (mapping) => mapping.n8nNodeType === n8nNodeType
     );
@@ -47,6 +55,13 @@ export class NodeMapper {
    * @returns The node mapping or undefined if not found
    */
   getNodeMappingByMakeId(makeModuleId: string): NodeMapping | undefined {
+    // Check if mappings exist
+    if (!this.mappingDatabase.mappings) {
+      logger.warn('No mappings available in the mapping database');
+      return undefined;
+    }
+    
+    // Find the mapping by makeModuleId
     return Object.values(this.mappingDatabase.mappings).find(
       (mapping) => mapping.makeModuleId === makeModuleId
     );
