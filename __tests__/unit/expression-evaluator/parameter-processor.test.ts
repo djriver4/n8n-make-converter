@@ -18,12 +18,19 @@ describe('NodeParameterProcessor', () => {
 
       const result = NodeParameterProcessor.convertN8nToMakeParameters(params);
       
+      // Ensure result is not null or undefined
+      expect(result).toBeDefined();
+      expect(result).not.toBeNull();
+      
+      // Type assertion since we've verified result is an object
+      const convertedResult = result as Record<string, any>;
+      
       // In our implementation, we're not handling string concatenation yet
       // So we'll just check that the expressions are converted correctly
-      expect(result.headers.Authorization).toBe('{{$json.token}}');
-      expect(result.nested.value).toBe('{{$workflow.id}}');
-      expect(result.method).toBe('GET');
-      expect(result['Content-Type']).toBeUndefined();
+      expect(convertedResult.headers.Authorization).toBe('{{$json.token}}');
+      expect(convertedResult.nested.value).toBe('{{$workflow.id}}');
+      expect(convertedResult.method).toBe('GET');
+      expect(convertedResult['Content-Type']).toBeUndefined();
     });
 
     it('should handle null and undefined parameters', () => {
@@ -53,12 +60,19 @@ describe('NodeParameterProcessor', () => {
 
       const result = NodeParameterProcessor.convertMakeToN8nParameters(params);
       
+      // Ensure result is not null or undefined
+      expect(result).toBeDefined();
+      expect(result).not.toBeNull();
+      
+      // Type assertion since we've verified result is an object
+      const convertedResult = result as Record<string, any>;
+      
       // In our implementation, we're not handling string concatenation yet
       // So we'll just check that the expressions are converted correctly
-      expect(result.headers.Authorization).toBe('={{ $json.token }}');
-      expect(result.nested.value).toBe('={{ $workflow.id }}');
-      expect(result.method).toBe('GET');
-      expect(result['Content-Type']).toBeUndefined();
+      expect(convertedResult.headers.Authorization).toBe('={{ $json.token }}');
+      expect(convertedResult.nested.value).toBe('={{ $workflow.id }}');
+      expect(convertedResult.method).toBe('GET');
+      expect(convertedResult['Content-Type']).toBeUndefined();
     });
 
     it('should handle null and undefined parameters', () => {
@@ -90,7 +104,7 @@ describe('NodeParameterProcessor', () => {
 
       const result = NodeParameterProcessor.identifyExpressionsForReview(params);
       
-      // Our implementation now checks for includes() rather than exact matches
+      // Our implementation now returns an array of paths
       expect(result).toContain('url');
       expect(result).toContain('headers.Authorization');
       expect(result).toContain('nested.deepNested.value');

@@ -11,7 +11,8 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "test:regression": "ts-node __tests__/regression/test-runner.ts",
-    "extract-mappings": "ts-node scripts/extract-n8n-mappings.ts"
+    "extract-mappings": "ts-node scripts/extract-n8n-mappings.ts",
+    "fix-mock-data": "ts-node scripts/fix-mock-data.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -46,6 +47,7 @@
     "@radix-ui/react-tooltip": "^1.1.6",
     "@testing-library/jest-dom": "latest",
     "@types/react": "latest",
+    "ajv": "^8.17.1",
     "autoprefixer": "^10.4.20",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -109,6 +111,13 @@
     ],
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/$1"
-    }
+    },
+    "testPathIgnorePatterns": [
+      "/node_modules/",
+      "/n8n/"
+    ],
+    "modulePathIgnorePatterns": [
+      "/n8n/"
+    ]
   }
 }

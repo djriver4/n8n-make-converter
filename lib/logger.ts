@@ -1,76 +1,56 @@
 /**
- * Simple logger utility for the n8n to Make.com converter
+ * Simple logger utility for the application
+ * Provides methods for logging at different levels (debug, info, warn, error)
  */
-
-// Log levels
-export enum LogLevel {
-  ERROR = 0,
-  WARN = 1,
-  INFO = 2,
-  DEBUG = 3,
-}
-
-class Logger {
-  private logLevel: LogLevel = LogLevel.INFO;
-
+export class Logger {
   /**
-   * Set the current log level
+   * Log a debug message
    * 
-   * @param level - The log level to set
+   * @param message - The debug message
+   * @param ...args - Additional arguments to log
    */
-  setLogLevel(level: LogLevel): void {
-    this.logLevel = level;
-  }
-
-  /**
-   * Log an error message
-   * 
-   * @param message - The message to log
-   * @param data - Optional data to include with the log
-   */
-  error(message: string, data?: any): void {
-    if (this.logLevel >= LogLevel.ERROR) {
-      console.error(`[ERROR] ${message}`, data ? data : '');
-    }
-  }
-
-  /**
-   * Log a warning message
-   * 
-   * @param message - The message to log
-   * @param data - Optional data to include with the log
-   */
-  warn(message: string, data?: any): void {
-    if (this.logLevel >= LogLevel.WARN) {
-      console.warn(`[WARN] ${message}`, data ? data : '');
+  static debug(message: string, ...args: any[]): void {
+    if (typeof console !== 'undefined') {
+      console.debug(`[DEBUG] ${message}`, ...args);
     }
   }
 
   /**
    * Log an info message
    * 
-   * @param message - The message to log
-   * @param data - Optional data to include with the log
+   * @param message - The info message
+   * @param ...args - Additional arguments to log
    */
-  info(message: string, data?: any): void {
-    if (this.logLevel >= LogLevel.INFO) {
-      console.info(`[INFO] ${message}`, data ? data : '');
+  static info(message: string, ...args: any[]): void {
+    if (typeof console !== 'undefined') {
+      console.info(`[INFO] ${message}`, ...args);
     }
   }
 
   /**
-   * Log a debug message
+   * Log a warning message
    * 
-   * @param message - The message to log
-   * @param data - Optional data to include with the log
+   * @param message - The warning message
+   * @param ...args - Additional arguments to log
    */
-  debug(message: string, data?: any): void {
-    if (this.logLevel >= LogLevel.DEBUG) {
-      console.debug(`[DEBUG] ${message}`, data ? data : '');
+  static warn(message: string, ...args: any[]): void {
+    if (typeof console !== 'undefined') {
+      console.warn(`[WARN] ${message}`, ...args);
+    }
+  }
+
+  /**
+   * Log an error message
+   * 
+   * @param message - The error message
+   * @param ...args - Additional arguments to log
+   */
+  static error(message: string, ...args: any[]): void {
+    if (typeof console !== 'undefined') {
+      console.error(`[ERROR] ${message}`, ...args);
     }
   }
 }
 
-// Export a singleton instance
-const logger = new Logger();
-export default logger; 
+// Default export for easier importing
+export default Logger; 

@@ -1,49 +1,290 @@
 {
-  "name": "Sample Make Workflow",
-  "flow": [
+  "name": "Sample Make.com Workflow",
+  "active": true,
+  "metadata": {
+    "instant": false,
+    "blueprint": false,
+    "color": "#5c90ff",
+    "folderName": "Samples"
+  },
+  "modules": [
     {
       "id": "1",
-      "name": "HTTP",
-      "type": "http",
+      "name": "Schedule",
+      "type": "scheduler",
       "parameters": {
-        "url": "https://example.com/api",
-        "method": "GET",
-        "timeout": "5000"
+        "interval": {
+          "value": 1,
+          "unit": "hours"
+        },
+        "startDate": "2023-01-01T12:00:00.000Z"
       },
-      "metadata": {
-        "designer": {
-          "x": 100,
-          "y": 100
-        }
-      }
+      "position": [
+        100,
+        200
+      ]
     },
     {
       "id": "2",
-      "name": "JSON",
-      "type": "json",
+      "name": "HTTP Get Users",
+      "type": "http",
       "parameters": {
-        "parsedObject": "{{1.data}}"
+        "URL": "https://jsonplaceholder.typicode.com/users",
+        "method": "GET",
+        "headers": {
+          "Accept": "application/json"
+        },
+        "parseResponse": true
       },
-      "metadata": {
-        "designer": {
-          "x": 300,
-          "y": 100
-        }
-      }
+      "position": [
+        300,
+        200
+      ]
     },
     {
       "id": "3",
-      "name": "Tools",
-      "type": "tools",
+      "name": "Iterator",
+      "type": "iterator",
       "parameters": {
-        "code": "// Process the data\nreturn {\n  result: items[0].data.map(function(item) {\n    return item.value * 2;\n  })\n};"
+        "sourceData": "{{2.data}}",
+        "targetCollection": "users"
       },
-      "metadata": {
-        "designer": {
-          "x": 500,
-          "y": 100
+      "position": [
+        500,
+        200
+      ]
+    },
+    {
+      "id": "4",
+      "name": "Filter Users",
+      "type": "filter",
+      "parameters": {
+        "conditions": {
+          "mode": "and",
+          "conditions": [
+            {
+              "field1": "{{1.username}}",
+              "operation": "contains",
+              "field2": "User"
+            }
+          ]
         }
-      }
+      },
+      "position": [
+        700,
+        200
+      ]
+    },
+    {
+      "id": "5",
+      "name": "Set Variables",
+      "type": "setVariable",
+      "parameters": {
+        "variables": [
+          {
+            "name": "userId",
+            "value": "{{1.id}}"
+          },
+          {
+            "name": "fullName",
+            "value": "{{1.name}}"
+          },
+          {
+            "name": "email",
+            "value": "{{1.email}}"
+          },
+          {
+            "name": "greeting",
+            "value": "Hello, {{1.name}}!"
+          }
+        ]
+      },
+      "position": [
+        900,
+        200
+      ]
+    },
+    {
+      "id": "6",
+      "name": "Transform Data",
+      "type": "code",
+      "parameters": {
+        "language": "javascript",
+        "code": "// Add custom data\nconst item = item;\nitem.processed = true;\nitem.timestamp = new Date().toISOString();\nitem.age = parseInt(item.id) * 5; // Dummy calculation\nitem.category = parseInt(item.id) % 2 === 0 ? 'even' : 'odd';\n\nreturn item;"
+      },
+      "position": [
+        1100,
+        200
+      ]
+    },
+    {
+      "id": "7",
+      "name": "Router",
+      "type": "router",
+      "parameters": {
+        "routes": [
+          {
+            "condition": {
+              "field1": "{{1.age}}",
+              "operation": "greaterThan",
+              "field2": "20"
+            },
+            "label": "Older Users"
+          },
+          {
+            "condition": {
+              "field1": "{{1.age}}",
+              "operation": "lessThanOrEqual",
+              "field2": "20"
+            },
+            "label": "Younger Users"
+          }
+        ]
+      },
+      "position": [
+        1300,
+        200
+      ]
+    },
+    {
+      "id": "8",
+      "name": "Process Older Users",
+      "type": "setVariable",
+      "parameters": {
+        "variables": [
+          {
+            "name": "ageGroup",
+            "value": "Senior"
+          },
+          {
+            "name": "message",
+            "value": "{{\"User \" + 1.name + \" is \" + 1.age + \" years old\"}}"
+          }
+        ]
+      },
+      "position": [
+        1500,
+        100
+      ]
+    },
+    {
+      "id": "9",
+      "name": "Process Younger Users",
+      "type": "setVariable",
+      "parameters": {
+        "variables": [
+          {
+            "name": "ageGroup",
+            "value": "Junior"
+          },
+          {
+            "name": "message",
+            "value": "{{\"User \" + 1.name + \" is \" + 1.age + \" years old\"}}"
+          }
+        ]
+      },
+      "position": [
+        1500,
+        300
+      ]
+    },
+    {
+      "id": "10",
+      "name": "Aggregator",
+      "type": "aggregator",
+      "parameters": {
+        "sourceCollection": "users",
+        "targetData": "combinedUsers"
+      },
+      "position": [
+        1700,
+        200
+      ]
+    },
+    {
+      "id": "11",
+      "name": "MongoDB Insert",
+      "type": "mongodb",
+      "parameters": {
+        "connection": "mongoDb",
+        "operation": "insertMany",
+        "collection": "users",
+        "documents": "{{10.combinedUsers}}",
+        "options": {
+          "upsert": true
+        }
+      },
+      "position": [
+        1900,
+        200
+      ]
     }
-  ]
+  ],
+  "routes": [
+    {
+      "sourceId": "1",
+      "targetId": "2",
+      "type": "main"
+    },
+    {
+      "sourceId": "2",
+      "targetId": "3",
+      "type": "main"
+    },
+    {
+      "sourceId": "3",
+      "targetId": "4",
+      "type": "main"
+    },
+    {
+      "sourceId": "4",
+      "targetId": "5",
+      "type": "main"
+    },
+    {
+      "sourceId": "5",
+      "targetId": "6",
+      "type": "main"
+    },
+    {
+      "sourceId": "6",
+      "targetId": "7",
+      "type": "main"
+    },
+    {
+      "sourceId": "7",
+      "targetId": "8",
+      "label": "Older Users",
+      "type": "conditional"
+    },
+    {
+      "sourceId": "7",
+      "targetId": "9",
+      "label": "Younger Users",
+      "type": "conditional"
+    },
+    {
+      "sourceId": "8",
+      "targetId": "10",
+      "type": "main"
+    },
+    {
+      "sourceId": "9",
+      "targetId": "10",
+      "type": "main"
+    },
+    {
+      "sourceId": "10",
+      "targetId": "11",
+      "type": "main"
+    }
+  ],
+  "settings": {
+    "timezone": "America/New_York",
+    "pauseOnError": true,
+    "notes": "Sample workflow for testing conversion logic"
+  },
+  "labels": ["sample", "testing"],
+  "version": 1,
+  "id": "sample-make-workflow"
 } 

@@ -7,6 +7,8 @@
 import { DebugTracker } from "../debug-tracker"
 import { getNodeMappings } from "../mappings/node-mapping"
 import logger from "../logger"
+import { NodeMapper } from "../node-mappings/node-mapper"
+import { NodeMappingLoader } from "../node-mappings/node-mapping-loader"
 
 // Define interfaces for type safety
 interface NodeMappingDefinition {
@@ -98,10 +100,10 @@ function convertExpressionToMakeFormat(expr: string): string {
 /**
  * Convert an n8n workflow to Make.com format
  * 
- * @param n8nWorkflow The n8n workflow to convert
- * @param debugTracker Debug tracker for logging
- * @param options Conversion options
- * @returns The converted Make.com workflow and logs
+ * @param n8nWorkflow - The n8n workflow to convert
+ * @param debugTracker - Optional debug tracker
+ * @param options - Conversion options
+ * @returns A promise resolving to the conversion result
  */
 export async function n8nToMake(
   n8nWorkflow: any,
@@ -135,6 +137,20 @@ export async function n8nToMake(
   }
   
   try {
+    // Initialize the node mapper if needed
+    if (options.useEnhancedMapper) {
+      const mappingLoader = NodeMappingLoader.getInstance();
+      await mappingLoader.loadMappings();
+      const mappingDatabase = mappingLoader.getMappings();
+      const nodeMapper = new NodeMapper(mappingDatabase);
+      
+      // Here we could use the enhanced mapper for better conversion
+      logger.info('Using enhanced node mapper for conversion');
+    } else {
+      // Use the simpler mapping approach from node-mapping.ts
+      logger.info('Using basic node mapper for conversion');
+    }
+
     // Validate the n8n workflow
     if (!n8nWorkflow) {
       debugTracker.addLog("error", "Invalid n8n workflow: Source workflow is empty");

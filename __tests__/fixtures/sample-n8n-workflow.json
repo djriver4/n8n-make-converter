@@ -1,70 +1,338 @@
 {
+  "name": "Sample n8n Workflow",
+  "active": true,
   "nodes": [
     {
-      "id": "a1b2c3",
+      "id": "1",
+      "name": "When clicking \"Execute Workflow\"",
+      "type": "n8n-nodes-base.manualTrigger",
+      "parameters": {},
+      "typeVersion": 1,
+      "position": [
+        250,
+        300
+      ]
+    },
+    {
+      "id": "2",
       "name": "HTTP Request",
       "type": "n8n-nodes-base.httpRequest",
       "parameters": {
-        "url": "https://example.com/api",
+        "url": "https://jsonplaceholder.typicode.com/users",
         "method": "GET",
         "authentication": "none",
         "options": {
-          "timeout": 5000
+          "redirect": {
+            "follow": true
+          }
         }
       },
+      "typeVersion": 1,
       "position": [
-        100,
-        200
+        470,
+        300
       ]
     },
     {
-      "id": "d4e5f6",
-      "name": "JSON Parse",
-      "type": "n8n-nodes-base.jsonParse",
+      "id": "3",
+      "name": "Filter",
+      "type": "n8n-nodes-base.filter",
       "parameters": {
-        "property": "data",
-        "options": {}
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.username }}",
+              "operation": "contains",
+              "value2": "User"
+            }
+          ]
+        }
       },
+      "typeVersion": 1,
       "position": [
-        300,
-        200
+        690,
+        300
       ]
     },
     {
-      "id": "g7h8i9",
+      "id": "4",
+      "name": "Set",
+      "type": "n8n-nodes-base.set",
+      "parameters": {
+        "values": {
+          "number": [
+            {
+              "name": "userId",
+              "value": "={{ $json.id }}"
+            }
+          ],
+          "string": [
+            {
+              "name": "fullName",
+              "value": "={{ $json.name }}"
+            },
+            {
+              "name": "email",
+              "value": "={{ $json.email }}"
+            },
+            {
+              "name": "greeting",
+              "value": "Hello, ={{ $json.name }}!"
+            }
+          ]
+        },
+        "options": {
+          "dotNotation": true
+        }
+      },
+      "typeVersion": 1,
+      "position": [
+        910,
+        300
+      ]
+    },
+    {
+      "id": "5",
       "name": "Function",
       "type": "n8n-nodes-base.function",
       "parameters": {
-        "functionCode": "// Code that contains complex expressions\nreturn {\n  result: $input.first().json.data.map(item => item.value * 2)\n};"
+        "functionCode": "// Add custom data\nfor (const item of items) {\n  item.json.processed = true;\n  item.json.timestamp = new Date().toISOString();\n  item.json.age = item.json.id * 5; // Dummy calculation\n  item.json.category = item.json.id % 2 === 0 ? 'even' : 'odd';\n}\n\nreturn items;"
       },
+      "typeVersion": 1,
       "position": [
-        500,
+        1130,
+        300
+      ]
+    },
+    {
+      "id": "6",
+      "name": "IF",
+      "type": "n8n-nodes-base.if",
+      "parameters": {
+        "conditions": {
+          "number": [
+            {
+              "value1": "={{ $json.age }}",
+              "operation": "larger",
+              "value2": 20
+            }
+          ]
+        }
+      },
+      "typeVersion": 1,
+      "position": [
+        1350,
+        300
+      ]
+    },
+    {
+      "id": "7",
+      "name": "Older Users",
+      "type": "n8n-nodes-base.set",
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "ageGroup",
+              "value": "Senior"
+            },
+            {
+              "name": "message",
+              "value": "={{ \"User \" + $json.name + \" is \" + $json.age + \" years old\" }}"
+            }
+          ]
+        }
+      },
+      "typeVersion": 1,
+      "position": [
+        1570,
         200
       ]
+    },
+    {
+      "id": "8",
+      "name": "Younger Users",
+      "type": "n8n-nodes-base.set",
+      "parameters": {
+        "values": {
+          "string": [
+            {
+              "name": "ageGroup",
+              "value": "Junior"
+            },
+            {
+              "name": "message",
+              "value": "={{ \"User \" + $json.name + \" is \" + $json.age + \" years old\" }}"
+            }
+          ]
+        }
+      },
+      "typeVersion": 1,
+      "position": [
+        1570,
+        400
+      ]
+    },
+    {
+      "id": "9",
+      "name": "Merge",
+      "type": "n8n-nodes-base.merge",
+      "parameters": {
+        "mode": "append"
+      },
+      "typeVersion": 2,
+      "position": [
+        1790,
+        300
+      ]
+    },
+    {
+      "id": "10",
+      "name": "MongoDB",
+      "type": "n8n-nodes-base.mongoDb",
+      "parameters": {
+        "operation": "insert",
+        "collection": "users",
+        "options": {
+          "upsert": true
+        }
+      },
+      "typeVersion": 1,
+      "position": [
+        2010,
+        300
+      ],
+      "credentials": {
+        "mongoDb": "mongoDbCredential"
+      }
     }
   ],
   "connections": {
-    "HTTP Request": {
+    "1": {
       "main": [
         [
           {
-            "node": "JSON Parse",
-            "type": "main",
-            "index": 0
+            "sourceNodeId": "1",
+            "targetNodeId": "2",
+            "sourceOutputIndex": 0,
+            "targetInputIndex": 0
           }
         ]
       ]
     },
-    "JSON Parse": {
+    "2": {
       "main": [
         [
           {
-            "node": "Function",
-            "type": "main",
-            "index": 0
+            "sourceNodeId": "2",
+            "targetNodeId": "3",
+            "sourceOutputIndex": 0,
+            "targetInputIndex": 0
+          }
+        ]
+      ]
+    },
+    "3": {
+      "main": [
+        [
+          {
+            "sourceNodeId": "3",
+            "targetNodeId": "4",
+            "sourceOutputIndex": 0,
+            "targetInputIndex": 0
+          }
+        ]
+      ]
+    },
+    "4": {
+      "main": [
+        [
+          {
+            "sourceNodeId": "4",
+            "targetNodeId": "5",
+            "sourceOutputIndex": 0,
+            "targetInputIndex": 0
+          }
+        ]
+      ]
+    },
+    "5": {
+      "main": [
+        [
+          {
+            "sourceNodeId": "5",
+            "targetNodeId": "6",
+            "sourceOutputIndex": 0,
+            "targetInputIndex": 0
+          }
+        ]
+      ]
+    },
+    "6": {
+      "main": [
+        [
+          {
+            "sourceNodeId": "6",
+            "targetNodeId": "7",
+            "sourceOutputIndex": 0,
+            "targetInputIndex": 0
+          }
+        ],
+        [
+          {
+            "sourceNodeId": "6",
+            "targetNodeId": "8",
+            "sourceOutputIndex": 1,
+            "targetInputIndex": 0
+          }
+        ]
+      ]
+    },
+    "7": {
+      "main": [
+        [
+          {
+            "sourceNodeId": "7",
+            "targetNodeId": "9",
+            "sourceOutputIndex": 0,
+            "targetInputIndex": 0
+          }
+        ]
+      ]
+    },
+    "8": {
+      "main": [
+        [
+          {
+            "sourceNodeId": "8",
+            "targetNodeId": "9",
+            "sourceOutputIndex": 0,
+            "targetInputIndex": 1
+          }
+        ]
+      ]
+    },
+    "9": {
+      "main": [
+        [
+          {
+            "sourceNodeId": "9",
+            "targetNodeId": "10",
+            "sourceOutputIndex": 0,
+            "targetInputIndex": 0
           }
         ]
       ]
     }
-  }
+  },
+  "settings": {
+    "executionOrder": "v1",
+    "timezone": "America/New_York",
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  },
+  "tags": ["sample", "testing"],
+  "pinData": {},
+  "version": 1,
+  "id": "sample-workflow"
 } 

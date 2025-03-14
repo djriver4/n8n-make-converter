@@ -8,26 +8,41 @@
 import { n8nToMake } from "./converters/n8n-to-make";
 import { makeToN8n } from "./converters/make-to-n8n";
 import { DebugTracker } from "./debug-tracker";
-import { getPluginRegistry } from "./plugins/plugin-registry";
-// Import the node mappings from the mappings directory
-import { getNodeMappings } from "./mappings/node-mapping";
-import { processObjectWithExpressions, ExpressionContext } from "./expression-evaluator";
+import { getPluginRegistry } from "./plugin-registry";
+import { processObjectWithExpressions, ExpressionContext, convertExpressions } from "./expression-evaluator";
 import { NodeParameterProcessor } from "./converters/parameter-processor";
 import logger from "./logger";
-import { N8nNode, MakeModule } from "./node-mappings/node-types";
+import { 
+  N8nNode, 
+  MakeModule, 
+  N8nWorkflow, 
+  MakeWorkflow,
+  N8nConnection,
+  MakeRoute
+} from "./node-mappings/node-types";
+// Import validation utilities
+import { validateMakeWorkflow, validateN8nWorkflow } from "./utils/validate-workflow";
+import { NodeMapper } from "./node-mappings/node-mapper";
+import { NodeMappingLoader } from "./node-mappings/node-mapping-loader";
+import { NodeMappingDatabase } from "./node-mappings/schema";
 
 // Define log structure
-interface ConversionLog {
+export interface ConversionLog {
   type: "info" | "warning" | "error";
   message: string;
+  details?: any;
+  timestamp?: string;
 }
 
 // Define conversion result structure
-interface ConversionResult {
-  convertedWorkflow: any;
+export interface ConversionResult {
+  convertedWorkflow: N8nWorkflow | MakeWorkflow;
   logs: ConversionLog[];
   parametersNeedingReview: string[];
+  unmappedNodes?: string[];
   workflowHasFunction?: boolean;
+  isValidInput?: boolean; // Added to track input validation status
+  debug?: Record<string, any>; // Debug information
 }
 
 // Define conversion options structure
@@ -36,104 +51,470 @@ interface ConversionOptions {
   evaluateExpressions?: boolean;
   // Context for expression evaluation
   expressionContext?: ExpressionContext;
+  // Whether to skip input validation
+  skipValidation?: boolean;
+  // Whether to transform parameter values during conversion
+  transformParameterValues?: boolean;
+  // Whether to include debug information
+  debug?: boolean;
+  // Whether to copy non-mapped parameters
+  copyNonMappedParameters?: boolean;
   // Other options
   [key: string]: any;
 }
 
-// Define interfaces for mapping structures
-interface NodeMappingDefinition {
-  type: string;
-  parameterMap: Record<string, string>;
-  description?: string;
-  userDefined?: boolean;
-  displayName?: string;
-}
-
-interface NodeMappings {
-  n8nToMake: Record<string, NodeMappingDefinition>;
-  makeToN8n: Record<string, NodeMappingDefinition>;
-}
-
 /**
- * Verify that mappings are available and log information about them
- * 
- * @param options Optional conversion options
- * @returns Boolean indicating if mappings are available
+ * Main workflow converter class that handles conversion between n8n and Make.com
  */
-async function verifyMappingsAvailable(options?: ConversionOptions): Promise<boolean> {
-  try {
-    // Get the mappings from lib/mappings/node-mapping.ts
-    const mappings = getNodeMappings() as NodeMappings;
-    
-    // Log the mappings for debugging
-    logger.info(`Mappings loaded from lib/mappings/node-mapping.ts`);
-    logger.info(`Loaded ${Object.keys(mappings.n8nToMake || {}).length} n8n->make mappings and ${Object.keys(mappings.makeToN8n || {}).length} make->n8n mappings`);
-    
-    return true;
-  } catch (error) {
-    logger.error(`Failed to verify mappings: ${error instanceof Error ? error.message : String(error)}`);
-    return false;
+export class WorkflowConverter {
+  private nodeMapper: NodeMapper;
+  private debugTracker: DebugTracker;
+  
+  /**
+   * Create a new workflow converter
+   * 
+   * @param mappingDatabase - The node mapping database to use
+   * @param debugTracker - Optional debug tracker
+   */
+  constructor(mappingDatabase: NodeMappingDatabase, debugTracker?: DebugTracker) {
+    this.nodeMapper = new NodeMapper(mappingDatabase);
+    this.debugTracker = debugTracker || new DebugTracker();
+    logger.info('WorkflowConverter initialized');
   }
-}
-
-/**
- * Convert a workflow from one platform to another,
- * using the enhanced Node Mapping System and Expression Evaluator
- */
-export async function convertWorkflow(
-  workflow: any,
-  sourcePlatform: "n8n" | "make",
-  targetPlatform: "n8n" | "make",
-  options: ConversionOptions = {},
-): Promise<ConversionResult> {
-  const debugTracker = new DebugTracker().startTiming();
-  debugTracker.addLog("info", `Starting ${targetPlatform} conversion`);
-
-  try {
-    // Verify mappings are available
-    const mappingsAvailable = await verifyMappingsAvailable(options);
-    if (!mappingsAvailable) {
-      debugTracker.addLog("error", "Mappings are not available, conversion cannot proceed");
+  
+  /**
+   * Convert an n8n workflow to Make.com format
+   * 
+   * @param n8nWorkflow - n8n workflow to convert
+   * @param options - Conversion options
+   * @returns Conversion result
+   */
+  convertN8nToMake(n8nWorkflow: N8nWorkflow, options: ConversionOptions = {}): ConversionResult {
+    const logs: ConversionLog[] = [];
+    const parametersNeedingReview: string[] = [];
+    const unmappedNodes: string[] = [];
+    const debug: Record<string, any> = {};
+    
+    // Validate input if not skipped
+    let isValidInput = true;
+    if (!options.skipValidation) {
+      try {
+        const validationResult = validateN8nWorkflow(n8nWorkflow);
+        isValidInput = validationResult.valid;
+        if (!isValidInput) {
+          logs.push({
+            type: "error",
+            message: "Invalid n8n workflow format",
+            timestamp: new Date().toISOString()
+          });
+          return {
+            convertedWorkflow: { name: "Invalid workflow", modules: [], routes: [], active: false } as MakeWorkflow,
+            logs,
+            parametersNeedingReview,
+            unmappedNodes,
+            isValidInput: false
+          };
+        }
+      } catch (error: any) {
+        logs.push({
+          type: "error",
+          message: `Error validating n8n workflow: ${error instanceof Error ? error.message : String(error)}`,
+          details: error,
+          timestamp: new Date().toISOString()
+        });
+        isValidInput = false;
+      }
+    }
+    
+    if (!isValidInput && !options.skipValidation) {
       return {
-        convertedWorkflow: {},
-        logs: debugTracker.getGeneralLogs(),
-        parametersNeedingReview: []
+        convertedWorkflow: { name: "Invalid workflow", modules: [], routes: [], active: false } as MakeWorkflow,
+        logs,
+        parametersNeedingReview,
+        unmappedNodes,
+        isValidInput: false
       };
     }
     
-    debugTracker.addLog("info", "Mappings verified, ready for workflow conversion");
-
-    // Check if workflow is empty
-    if (!workflow) {
-      debugTracker.addLog("error", "Source workflow is empty");
-      return {
-        convertedWorkflow: {},
-        logs: debugTracker.getGeneralLogs(),
-        parametersNeedingReview: []
-      };
+    // Start creating Make workflow
+    const makeWorkflow: MakeWorkflow = {
+      name: n8nWorkflow.name,
+      modules: [],
+      routes: [],
+      active: n8nWorkflow.active,
+      settings: n8nWorkflow.settings || {},
+      labels: n8nWorkflow.tags || [],
+      version: n8nWorkflow.version || 1
+    };
+    
+    // Maps for node correlations
+    const nodeIdMap: Record<string, string> = {};
+    
+    // Process each n8n node
+    for (const n8nNode of n8nWorkflow.nodes) {
+      try {
+        // Use NodeMapper to convert the node
+        const conversionResult = this.nodeMapper.convertN8nNodeToMakeModule(n8nNode, {
+          evaluateExpressions: options.evaluateExpressions,
+          expressionContext: options.expressionContext,
+          transformParameterValues: options.transformParameterValues !== false,
+          debug: options.debug,
+          copyNonMappedParameters: options.copyNonMappedParameters
+        });
+        
+        const makeModule = conversionResult.node as MakeModule;
+        
+        // Add to modules array
+        makeWorkflow.modules.push(makeModule);
+        
+        // Store the correlation between n8n and Make IDs
+        nodeIdMap[n8nNode.id] = makeModule.id.toString();
+        
+        // Store debug information if requested
+        if (options.debug && conversionResult.debug) {
+          debug[`node-${n8nNode.id}`] = conversionResult.debug;
+        }
+      } catch (error: any) {
+        if (error.name === 'NodeMappingError') {
+          // No mapping found for this node type
+          unmappedNodes.push(n8nNode.type);
+          logs.push({
+            type: "warning",
+            message: `No mapping found for n8n node type: ${n8nNode.type}`,
+            details: { nodeId: n8nNode.id, nodeName: n8nNode.name },
+            timestamp: new Date().toISOString()
+          });
+          
+          // Create a placeholder module
+          const placeholderModule: MakeModule = {
+            id: n8nNode.id,
+            name: `[UNMAPPED] ${n8nNode.name}`,
+            type: "placeholder",
+            parameters: { originalType: n8nNode.type },
+            notes: `This module represents an unmapped n8n node of type: ${n8nNode.type}`
+          };
+          
+          if (n8nNode.position) {
+            placeholderModule.position = n8nNode.position;
+          }
+          
+          makeWorkflow.modules.push(placeholderModule);
+          nodeIdMap[n8nNode.id] = placeholderModule.id.toString();
+        } else {
+          // Other conversion error
+          logs.push({
+            type: "error",
+            message: `Error converting n8n node '${n8nNode.name}' (${n8nNode.type}): ${error instanceof Error ? error.message : String(error)}`,
+            details: { error, nodeId: n8nNode.id, nodeName: n8nNode.name, nodeType: n8nNode.type },
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
     }
-
-    // Call the appropriate converter based on source and target platforms
-    if (sourcePlatform === "n8n" && targetPlatform === "make") {
-      return await n8nToMake(workflow, debugTracker, options);
-    } else if (sourcePlatform === "make" && targetPlatform === "n8n") {
-      return await makeToN8n(workflow, debugTracker, options);
-    } else {
-      debugTracker.addLog("error", `Unsupported conversion: ${sourcePlatform} to ${targetPlatform}`);
-      return {
-        convertedWorkflow: {},
-        logs: debugTracker.getGeneralLogs(),
-        parametersNeedingReview: []
-      };
+    
+    // Process connections to create routes
+    for (const [sourceNodeId, connections] of Object.entries(n8nWorkflow.connections)) {
+      if (!connections.main) continue;
+      
+      for (const [outputIndex, targetConnections] of Object.entries(connections.main)) {
+        for (const connection of targetConnections) {
+          try {
+            const route: MakeRoute = {
+              sourceId: nodeIdMap[sourceNodeId],
+              targetId: nodeIdMap[connection.targetNodeId]
+            };
+            
+            // Add output label if needed
+            if (parseInt(outputIndex) > 0) {
+              route.label = `Output ${parseInt(outputIndex) + 1}`;
+            }
+            
+            makeWorkflow.routes.push(route);
+          } catch (error: any) {
+            logs.push({
+              type: "error",
+              message: `Error creating route from node ${sourceNodeId} to ${connection.targetNodeId}: ${error instanceof Error ? error.message : String(error)}`,
+              details: { sourceNodeId, targetNodeId: connection.targetNodeId, outputIndex },
+              timestamp: new Date().toISOString()
+            });
+          }
+        }
+      }
     }
-  } catch (error) {
-    debugTracker.addLog("error", `Conversion failed: ${error instanceof Error ? error.message : String(error)}`);
+    
+    // Identify parameters that may need manual review
+    const expressionsForReview = NodeParameterProcessor.identifyExpressionsForReview(n8nWorkflow);
+    for (const [path, info] of Object.entries(expressionsForReview)) {
+      parametersNeedingReview.push(`${info.nodeType} - ${path}: ${info.reason}`);
+    }
+    
     return {
-      convertedWorkflow: {},
-      logs: debugTracker.getGeneralLogs(),
-      parametersNeedingReview: []
+      convertedWorkflow: makeWorkflow,
+      logs,
+      parametersNeedingReview,
+      unmappedNodes,
+      workflowHasFunction: parametersNeedingReview.length > 0,
+      isValidInput,
+      debug: options.debug ? debug : undefined
     };
   }
+  
+  /**
+   * Convert a Make.com workflow to n8n format
+   * 
+   * @param makeWorkflow - Make.com workflow to convert
+   * @param options - Conversion options
+   * @returns Conversion result
+   */
+  convertMakeToN8n(makeWorkflow: MakeWorkflow, options: ConversionOptions = {}): ConversionResult {
+    const logs: ConversionLog[] = [];
+    const parametersNeedingReview: string[] = [];
+    const unmappedNodes: string[] = [];
+    const debug: Record<string, any> = {};
+    
+    // Validate input if not skipped
+    let isValidInput = true;
+    if (!options.skipValidation) {
+      try {
+        const validationResult = validateMakeWorkflow(makeWorkflow);
+        isValidInput = validationResult.valid;
+        if (!isValidInput) {
+          logs.push({
+            type: "error",
+            message: "Invalid Make.com workflow format",
+            timestamp: new Date().toISOString()
+          });
+          return {
+            convertedWorkflow: { name: "Invalid workflow", nodes: [], connections: {}, active: false } as N8nWorkflow,
+            logs,
+            parametersNeedingReview,
+            unmappedNodes,
+            isValidInput: false
+          };
+        }
+      } catch (error: any) {
+        logs.push({
+          type: "error",
+          message: `Error validating Make.com workflow: ${error instanceof Error ? error.message : String(error)}`,
+          details: error,
+          timestamp: new Date().toISOString()
+        });
+        isValidInput = false;
+      }
+    }
+    
+    if (!isValidInput && !options.skipValidation) {
+      return {
+        convertedWorkflow: { name: "Invalid workflow", nodes: [], connections: {}, active: false } as N8nWorkflow,
+        logs,
+        parametersNeedingReview,
+        unmappedNodes,
+        isValidInput: false
+      };
+    }
+    
+    // Start creating n8n workflow
+    const n8nWorkflow: N8nWorkflow = {
+      name: makeWorkflow.name,
+      nodes: [],
+      connections: {},
+      active: makeWorkflow.active,
+      settings: makeWorkflow.settings || {},
+      tags: makeWorkflow.labels || [],
+      version: makeWorkflow.version || 1
+    };
+    
+    // Maps for module correlations
+    const moduleIdMap: Record<string, string> = {};
+    
+    // Process each Make module
+    for (const makeModule of makeWorkflow.modules) {
+      try {
+        // Use NodeMapper to convert the module
+        const conversionResult = this.nodeMapper.convertMakeModuleToN8nNode(makeModule, {
+          evaluateExpressions: options.evaluateExpressions,
+          expressionContext: options.expressionContext,
+          transformParameterValues: options.transformParameterValues !== false,
+          debug: options.debug,
+          copyNonMappedParameters: options.copyNonMappedParameters
+        });
+        
+        const n8nNode = conversionResult.node as N8nNode;
+        
+        // Add to nodes array
+        n8nWorkflow.nodes.push(n8nNode);
+        
+        // Store the correlation between Make and n8n IDs
+        moduleIdMap[makeModule.id.toString()] = n8nNode.id;
+        
+        // Store debug information if requested
+        if (options.debug && conversionResult.debug) {
+          debug[`module-${makeModule.id}`] = conversionResult.debug;
+        }
+      } catch (error: any) {
+        if (error.name === 'NodeMappingError') {
+          // No mapping found for this module type
+          unmappedNodes.push(makeModule.type);
+          logs.push({
+            type: "warning",
+            message: `No mapping found for Make.com module type: ${makeModule.type}`,
+            details: { moduleId: makeModule.id, moduleName: makeModule.name },
+            timestamp: new Date().toISOString()
+          });
+          
+          // Create a placeholder node
+          const placeholderNode: N8nNode = {
+            id: makeModule.id.toString(),
+            name: `[UNMAPPED] ${makeModule.name}`,
+            type: "placeholder",
+            parameters: { originalType: makeModule.type },
+            notes: `This node represents an unmapped Make.com module of type: ${makeModule.type}`
+          };
+          
+          if (makeModule.position) {
+            placeholderNode.position = makeModule.position;
+          }
+          
+          n8nWorkflow.nodes.push(placeholderNode);
+          moduleIdMap[makeModule.id.toString()] = placeholderNode.id;
+        } else {
+          // Other conversion error
+          logs.push({
+            type: "error",
+            message: `Error converting Make module '${makeModule.name}' (${makeModule.type}): ${error instanceof Error ? error.message : String(error)}`,
+            details: { error, moduleId: makeModule.id, moduleName: makeModule.name, moduleType: makeModule.type },
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
+    }
+    
+    // Process routes to create connections
+    for (const route of makeWorkflow.routes) {
+      try {
+        const sourceNodeId = moduleIdMap[route.sourceId.toString()];
+        const targetNodeId = moduleIdMap[route.targetId.toString()];
+        
+        if (!sourceNodeId || !targetNodeId) {
+          logs.push({
+            type: "warning",
+            message: `Skipping route - missing node mapping for source or target`,
+            details: { sourceId: route.sourceId, targetId: route.targetId },
+            timestamp: new Date().toISOString()
+          });
+          continue;
+        }
+        
+        // Initialize connections object structure if needed
+        if (!n8nWorkflow.connections[sourceNodeId]) {
+          n8nWorkflow.connections[sourceNodeId] = { main: {} };
+        }
+        if (!n8nWorkflow.connections[sourceNodeId].main) {
+          n8nWorkflow.connections[sourceNodeId].main = {};
+        }
+        
+        // Determine output index based on route label
+        let outputIndex = 0;
+        if (route.label && route.label.startsWith('Output ')) {
+          const match = route.label.match(/Output (\d+)/);
+          if (match && match[1]) {
+            outputIndex = parseInt(match[1]) - 1;
+          }
+        }
+        
+        // Initialize the output index array if needed
+        if (!n8nWorkflow.connections[sourceNodeId].main[outputIndex]) {
+          n8nWorkflow.connections[sourceNodeId].main[outputIndex] = [];
+        }
+        
+        // Add the connection
+        n8nWorkflow.connections[sourceNodeId].main[outputIndex].push({
+          sourceNodeId,
+          targetNodeId,
+          sourceOutputIndex: outputIndex,
+          targetInputIndex: 0
+        });
+      } catch (error: any) {
+        logs.push({
+          type: "error",
+          message: `Error creating connection from module ${route.sourceId} to ${route.targetId}: ${error instanceof Error ? error.message : String(error)}`,
+          details: { sourceId: route.sourceId, targetId: route.targetId },
+          timestamp: new Date().toISOString()
+        });
+      }
+    }
+    
+    // Identify parameters that may need manual review
+    const expressionsForReview = NodeParameterProcessor.identifyExpressionsForReview(makeWorkflow);
+    for (const [path, info] of Object.entries(expressionsForReview)) {
+      parametersNeedingReview.push(`${info.nodeType} - ${path}: ${info.reason}`);
+    }
+    
+    return {
+      convertedWorkflow: n8nWorkflow,
+      logs,
+      parametersNeedingReview,
+      unmappedNodes,
+      workflowHasFunction: parametersNeedingReview.length > 0,
+      isValidInput,
+      debug: options.debug ? debug : undefined
+    };
+  }
+}
+
+// Export a singleton instance for convenience
+let defaultMappingDatabase: NodeMappingDatabase | undefined;
+let defaultConverter: WorkflowConverter | undefined;
+
+/**
+ * Get a default workflow converter instance
+ * 
+ * @returns The default workflow converter
+ */
+export function getWorkflowConverter(): WorkflowConverter {
+  if (!defaultConverter) {
+    if (!defaultMappingDatabase) {
+      // Initialize mapping database from a file
+      defaultMappingDatabase = {
+        version: "1.0",
+        lastUpdated: new Date().toISOString(),
+        mappings: {}
+      };
+      
+      // In a real implementation, this would load mappings from a file or API
+      try {
+        // Here we would typically load from a file or API
+        // For now, we'll just use an empty database
+        logger.info('Initializing default mapping database');
+      } catch (error) {
+        logger.error('Failed to load default mappings', error);
+      }
+    }
+    defaultConverter = new WorkflowConverter(defaultMappingDatabase);
+  }
+  return defaultConverter;
+}
+
+/**
+ * Convert n8n workflow to Make.com using the default converter
+ * 
+ * @param n8nWorkflow - The n8n workflow to convert
+ * @param options - Conversion options
+ * @returns Conversion result
+ */
+export function convertN8nToMake(n8nWorkflow: N8nWorkflow, options: ConversionOptions = {}): ConversionResult {
+  return getWorkflowConverter().convertN8nToMake(n8nWorkflow, options);
+}
+
+/**
+ * Convert Make.com workflow to n8n using the default converter
+ * 
+ * @param makeWorkflow - The Make.com workflow to convert
+ * @param options - Conversion options
+ * @returns Conversion result
+ */
+export function convertMakeToN8n(makeWorkflow: MakeWorkflow, options: ConversionOptions = {}): ConversionResult {
+  return getWorkflowConverter().convertMakeToN8n(makeWorkflow, options);
 }
 
 /**
@@ -143,26 +524,47 @@ export async function convertWorkflow(
  * @param options Conversion options
  * @returns Converted Make module
  */
-export async function convertN8nNodeToMakeModule(
+export function convertN8nNodeToMakeModule(
   node: N8nNode,
   options: ConversionOptions = {}
-): Promise<MakeModule> {
-  const mapper = await initializeNodeMapper(options);
-  
-  // Convert the node using the NodeMapper
-  const makeModule = mapper.mapN8nNodeToMake(node);
-  
+): MakeModule {
   // Process any expressions in the parameters if needed
-  if (options.evaluateExpressions && options.expressionContext) {
-    if (makeModule.definition && makeModule.definition.parameters) {
-      makeModule.definition.parameters = NodeParameterProcessor.evaluateExpressions(
-        makeModule.definition.parameters,
-        options.expressionContext
-      );
-    }
+  if (options.evaluateExpressions && options.expressionContext && node.parameters) {
+    node.parameters = NodeParameterProcessor.evaluateExpressions(
+      node.parameters,
+      options.expressionContext
+    );
   }
   
-  return makeModule;
+  try {
+    // Load the mapping database if not already passed in options
+    const mappingDatabase = options.mappingDatabase || NodeMappingLoader.getInstance().getMappings();
+    
+    // Create a NodeMapper instance
+    const nodeMapper = new NodeMapper(mappingDatabase);
+    
+    // Use the NodeMapper to convert the node
+    const result = nodeMapper.convertN8nNodeToMakeModule(node);
+    const makeModule = result.node as MakeModule;
+    
+    // Apply any additional parameter conversions
+    makeModule.parameters = NodeParameterProcessor.convertN8nToMakeParameters(
+      makeModule.parameters,
+      options.expressionContext
+    );
+    
+    return makeModule;
+  } catch (error) {
+    logger.error(`Error converting n8n node to Make module: ${error instanceof Error ? error.message : String(error)}`);
+    
+    // Return a minimal Make module as a fallback
+    return {
+      id: parseInt(node.id, 10) || 1, // Convert string id to number
+      name: node.name,
+      type: node.type,
+      parameters: node.parameters || {}
+    };
+  }
 }
 
 /**
@@ -172,24 +574,40 @@ export async function convertN8nNodeToMakeModule(
  * @param options Conversion options
  * @returns Converted N8n node
  */
-export async function convertMakeModuleToN8nNode(
+export function convertMakeModuleToN8nNode(
   module: MakeModule,
   options: ConversionOptions = {}
-): Promise<N8nNode> {
-  const mapper = await initializeNodeMapper(options);
-  
-  // Convert the module using the NodeMapper
-  const n8nNode = mapper.mapMakeNodeToN8n(module);
-  
-  // Process any expressions in the parameters if needed
-  if (options.evaluateExpressions && options.expressionContext) {
-    if (n8nNode.parameters) {
-      n8nNode.parameters = NodeParameterProcessor.evaluateExpressions(
+): N8nNode {
+  try {
+    // Load the mapping database if not already passed in options
+    const mappingDatabase = options.mappingDatabase || NodeMappingLoader.getInstance().getMappings();
+    
+    // Create a NodeMapper instance
+    const nodeMapper = new NodeMapper(mappingDatabase);
+    
+    // Use the NodeMapper to convert the module
+    const result = nodeMapper.convertMakeModuleToN8nNode(module);
+    const n8nNode = result.node as N8nNode;
+    
+    // Process any expressions in the parameters if needed
+    if (options.evaluateExpressions && options.expressionContext && n8nNode.parameters) {
+      n8nNode.parameters = NodeParameterProcessor.convertMakeToN8nParameters(
         n8nNode.parameters,
         options.expressionContext
       );
     }
+    
+    return n8nNode;
+  } catch (error) {
+    logger.error(`Error converting Make module to n8n node: ${error instanceof Error ? error.message : String(error)}`);
+    
+    // Return a minimal n8n node as a fallback
+    return {
+      id: String(module.id),
+      name: module.name,
+      type: module.type,
+      position: [0, 0],
+      parameters: module.parameters || {}
+    };
   }
-  
-  return n8nNode;
 } 

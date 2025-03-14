@@ -1,6 +1,7 @@
-import { NodeMapper, NodeMappingError } from '../../../lib/node-mappings/node-mapper';
+import { NodeMapper, NodeMappingError, ConversionOptions, ConversionResult } from '../../../lib/node-mappings/node-mapper';
 import { N8nNode, MakeModule } from '../../../lib/node-mappings/node-types';
-import { NodeMappingDatabase } from '../../../lib/node-mappings/schema';
+import { NodeMappingDatabase, NodeMapping, ParameterMapping } from '../../../lib/node-mappings/schema';
+import { describe, it, expect, beforeEach } from '@jest/globals';
 
 // Sample mapping database for testing
 const testMappingDatabase: NodeMappingDatabase = {
@@ -8,63 +9,126 @@ const testMappingDatabase: NodeMappingDatabase = {
   lastUpdated: '2023-11-15',
   mappings: {
     httpRequest: {
-      n8nNodeType: 'n8n-nodes-base.httpRequest',
-      n8nDisplayName: 'HTTP Request',
-      makeModuleId: 'http',
-      makeModuleName: 'HTTP',
-      n8nTypeCategory: 'Action',
-      makeTypeCategory: 'App',
-      description: 'Make a HTTP request and receive the response',
-      operations: [
-        {
-          n8nName: 'GET',
-          makeName: 'get',
-          description: 'Make a GET request',
-          parameters: [
-            {
-              n8nName: 'url',
-              makeName: 'url',
-              type: 'string',
-              required: true,
-              description: 'The URL to make the request to'
-            },
-            {
-              n8nName: 'headers',
-              makeName: 'headers',
-              type: 'object',
-              required: false,
-              description: 'Request headers'
-            }
-          ]
+      source: 'n8n',
+      sourceNodeType: 'n8n-nodes-base.httpRequest',
+      targetNodeType: 'http',
+      parameterMappings: {
+        'url': { 
+          targetPath: 'url',
+          description: 'URL to make the request to'
+        },
+        'method': { 
+          targetPath: 'method',
+          description: 'HTTP method'
+        },
+        'headers': { 
+          targetPath: 'headers',
+          description: 'HTTP headers'
         }
-      ],
-      credentials: [
-        {
-          n8nType: 'httpBasicAuth',
-          makeType: 'basic',
-          fields: [
-            {
-              n8nName: 'user',
-              makeName: 'username',
-              type: 'string'
-            },
-            {
-              n8nName: 'password',
-              makeName: 'password',
-              type: 'string'
-            }
-          ]
+      },
+      metadata: {
+        displayName: 'HTTP Request',
+        description: 'Make a HTTP request and receive the response'
+      }
+    },
+    http: {
+      source: 'make',
+      sourceNodeType: 'http',
+      targetNodeType: 'n8n-nodes-base.httpRequest',
+      parameterMappings: {
+        'url': { 
+          targetPath: 'url',
+          description: 'URL to make the request to'
+        },
+        'method': { 
+          targetPath: 'method',
+          description: 'HTTP method'
+        },
+        'headers': { 
+          targetPath: 'headers',
+          description: 'HTTP headers'
         }
-      ]
+      },
+      metadata: {
+        displayName: 'HTTP',
+        description: 'Make a HTTP request'
+      }
     }
   }
 };
+
+// Mock the node-mapping module
+jest.mock('../../../lib/node-mappings/node-mapping', () => {
+  return {
+    getNodeMappings: jest.fn().mockReturnValue({
+      n8nToMake: {
+        'n8n.weather': {
+          targetType: 'weather:ActionGetCurrentWeather',
+          parameterMappings: {
+            n8nToMake: {
+              'location': { targetPath: 'city' },
+              'units': { targetPath: 'units' },
+              'includeAlerts': { targetPath: 'includeAlerts', transform: 'booleanToString' }
+            },
+            makeToN8n: {}
+          }
+        },
+        'n8n.email': {
+          targetType: 'email:ActionSendEmail',
+          parameterMappings: {
+            n8nToMake: {
+              'to': { targetPath: 'recipients' },
+              'subject': { targetPath: 'subject' },
+              'body': { targetPath: 'content' },
+              'attachments': { targetPath: 'files' }
+            },
+            makeToN8n: {}
+          }
+        }
+      },
+      makeToN8n: {
+        'weather:ActionGetCurrentWeather': {
+          targetType: 'n8n.weather',
+          parameterMappings: {
+            makeToN8n: {
+              'city': { targetPath: 'location' },
+              'units': { targetPath: 'units' },
+              'includeAlerts': { targetPath: 'includeAlerts', transform: 'stringToBoolean' }
+            },
+            n8nToMake: {}
+          }
+        },
+        'email:ActionSendEmail': {
+          targetType: 'n8n.email',
+          parameterMappings: {
+            makeToN8n: {
+              'recipients': { targetPath: 'to' },
+              'subject': { targetPath: 'subject' },
+              'content': { targetPath: 'body' },
+              'files': { targetPath: 'attachments' }
+            },
+            n8nToMake: {}
+          }
+        }
+      }
+    })
+  };
+});
+
+// Mock the logger
+jest.mock('console', () => ({
+  info: jest.fn(),
+  warn: jest.fn(),
+  error: jest.fn(),
+  debug: jest.fn()
+}));
 
 describe('NodeMapper', () => {
   let nodeMapper: NodeMapper;
 
   beforeEach(() => {
-    // Create a new NodeMapper instance for each test
+    // Reset mocks
+    jest.clearAllMocks();
     nodeMapper = new NodeMapper(testMappingDatabase);
   });
 
@@ -72,7 +136,7 @@ describe('NodeMapper', () => {
     it('should return the correct mapping for a valid n8n node type', () => {
       const mapping = nodeMapper.getNodeMappingByN8nType('n8n-nodes-base.httpRequest');
       expect(mapping).toBeDefined();
-      expect(mapping?.n8nDisplayName).toBe('HTTP Request');
+      expect(mapping?.metadata?.displayName).toBe('HTTP Request');
     });
 
     it('should return undefined for an invalid n8n node type', () => {
@@ -85,7 +149,7 @@ describe('NodeMapper', () => {
     it('should return the correct mapping for a valid Make.com module ID', () => {
       const mapping = nodeMapper.getNodeMappingByMakeId('http');
       expect(mapping).toBeDefined();
-      expect(mapping?.makeModuleName).toBe('HTTP');
+      expect(mapping?.metadata?.displayName).toBe('HTTP');
     });
 
     it('should return undefined for an invalid Make.com module ID', () => {
@@ -94,121 +158,185 @@ describe('NodeMapper', () => {
     });
   });
 
-  describe('mapN8nNodeToMake', () => {
-    it('should convert an n8n HTTP Request GET node to a Make.com HTTP module', () => {
-      const n8nNode: N8nNode = {
-        id: '1',
+  describe('convertN8nNodeToMakeModule', () => {
+    it('should convert an n8n HTTP node to a Make HTTP module', () => {
+      const n8nNode = {
+        id: 'test-id',
         name: 'HTTP Request',
         type: 'n8n-nodes-base.httpRequest',
-        position: [100, 200],
         parameters: {
-          operation: 'GET',
           url: 'https://example.com/api',
+          method: 'GET',
           headers: {
             'Content-Type': 'application/json'
           }
-        }
+        },
+        position: [100, 200]
       };
 
-      const makeModule = nodeMapper.mapN8nNodeToMake(n8nNode);
-      
-      expect(makeModule).toBeDefined();
-      expect(makeModule.type).toBe('http');
-      expect(makeModule.name).toBe('HTTP Request');
-      expect(makeModule.definition.type).toBe('get');
-      expect(makeModule.definition.parameters?.url).toBe('https://example.com/api');
-      expect(makeModule.definition.parameters?.headers).toEqual({
-        'Content-Type': 'application/json'
+      const result = nodeMapper.convertN8nNodeToMakeModule(n8nNode);
+      const makeModule = result.node;
+
+      expect(makeModule).toEqual({
+        id: 'test-id',
+        name: 'HTTP Request',
+        type: 'http',
+        parameters: {
+          url: 'https://example.com/api',
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        },
+        position: [100, 200]
       });
     });
 
-    it('should throw an error for an unmapped n8n node type', () => {
-      const n8nNode: N8nNode = {
-        id: '1',
-        name: 'Unknown Node',
-        type: 'n8n-nodes-base.unknownNode',
-        position: [100, 200],
-        parameters: {}
-      };
-
-      expect(() => nodeMapper.mapN8nNodeToMake(n8nNode)).toThrow(NodeMappingError);
-    });
-
-    it('should throw an error for an unmapped operation', () => {
-      const n8nNode: N8nNode = {
-        id: '1',
+    it('should handle missing parameters', () => {
+      const n8nNode = {
+        id: 'test-id',
         name: 'HTTP Request',
         type: 'n8n-nodes-base.httpRequest',
-        position: [100, 200],
         parameters: {
-          operation: 'UNKNOWN_METHOD',
           url: 'https://example.com/api'
-        }
+        },
+        position: [100, 200]
       };
 
-      expect(() => nodeMapper.mapN8nNodeToMake(n8nNode)).toThrow(NodeMappingError);
+      const result = nodeMapper.convertN8nNodeToMakeModule(n8nNode);
+      const makeModule = result.node;
+
+      expect(makeModule).toEqual({
+        id: 'test-id',
+        name: 'HTTP Request',
+        type: 'http',
+        parameters: {
+          url: 'https://example.com/api'
+        },
+        position: [100, 200]
+      });
+    });
+
+    it('should throw an error for unknown node types', () => {
+      const n8nNode = {
+        id: 'test-id',
+        name: 'Unknown Node',
+        type: 'n8n-nodes-base.unknown',
+        parameters: {},
+        position: [100, 200]
+      };
+
+      // It should throw an error for unknown node types
+      expect(() => {
+        nodeMapper.convertN8nNodeToMakeModule(n8nNode);
+      }).toThrow('No mapping found for n8n node type: n8n-nodes-base.unknown');
     });
   });
 
-  describe('mapMakeNodeToN8n', () => {
-    it('should convert a Make.com HTTP module to an n8n HTTP Request node', () => {
-      const makeModule: MakeModule = {
-        id: 1,
+  describe('convertMakeModuleToN8nNode', () => {
+    it('should convert a Make HTTP module to an n8n HTTP node', () => {
+      const makeModule = {
+        id: 'test-id',
         name: 'HTTP',
         type: 'http',
-        bundleId: 'http',
-        definition: {
-          type: 'get',
-          parameters: {
-            url: 'https://example.com/api',
-            headers: {
-              'Content-Type': 'application/json'
-            }
+        parameters: {
+          url: 'https://example.com/api',
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
           }
-        }
+        },
+        position: [100, 200]
       };
 
-      const n8nNode = nodeMapper.mapMakeNodeToN8n(makeModule);
-      
-      expect(n8nNode).toBeDefined();
-      expect(n8nNode.type).toBe('n8n-nodes-base.httpRequest');
-      expect(n8nNode.name).toBe('HTTP');
-      expect(n8nNode.parameters?.operation).toBe('GET');
-      expect(n8nNode.parameters?.url).toBe('https://example.com/api');
-      expect(n8nNode.parameters?.headers).toEqual({
-        'Content-Type': 'application/json'
+      const result = nodeMapper.convertMakeModuleToN8nNode(makeModule);
+      const n8nNode = result.node;
+
+      expect(n8nNode).toEqual({
+        id: 'test-id',
+        name: 'HTTP',
+        type: 'n8n-nodes-base.httpRequest',
+        parameters: {
+          url: 'https://example.com/api',
+          method: 'GET',
+          headers: {
+            'Content-Type': 'application/json'
+          }
+        },
+        position: [100, 200]
       });
     });
 
-    it('should throw an error for an unmapped Make.com module type', () => {
-      const makeModule: MakeModule = {
-        id: 1,
-        name: 'Unknown Module',
-        type: 'unknown-module',
-        bundleId: 'unknown',
-        definition: {
-          type: 'default'
-        }
-      };
-
-      expect(() => nodeMapper.mapMakeNodeToN8n(makeModule)).toThrow(NodeMappingError);
-    });
-
-    it('should throw an error for an unmapped operation', () => {
-      const makeModule: MakeModule = {
-        id: 1,
+    it('should handle missing parameters', () => {
+      const makeModule = {
+        id: 'test-id',
         name: 'HTTP',
         type: 'http',
-        bundleId: 'http',
-        definition: {
-          type: 'unknown_method',
-          parameters: {
-            url: 'https://example.com/api'
-          }
-        }
+        parameters: {
+          url: 'https://example.com/api'
+        },
+        position: [100, 200]
       };
 
-      expect(() => nodeMapper.mapMakeNodeToN8n(makeModule)).toThrow(NodeMappingError);
+      const result = nodeMapper.convertMakeModuleToN8nNode(makeModule);
+      const n8nNode = result.node;
+
+      expect(n8nNode).toEqual({
+        id: 'test-id',
+        name: 'HTTP',
+        type: 'n8n-nodes-base.httpRequest',
+        parameters: {
+          url: 'https://example.com/api'
+        },
+        position: [100, 200]
+      });
+    });
+
+    it('should throw an error for unknown module types', () => {
+      const makeModule = {
+        id: 'test-id',
+        name: 'Unknown Module',
+        type: 'unknown',
+        parameters: {},
+        position: [100, 200]
+      };
+
+      // It should throw an error for unknown module types
+      expect(() => {
+        nodeMapper.convertMakeModuleToN8nNode(makeModule);
+      }).toThrow('No mapping found for Make module type: unknown');
+    });
+  });
+
+  describe('transformParameterValue', () => {
+    it('should transform boolean values correctly', () => {
+      const value = true;
+      const transformed = nodeMapper.transformParameterValue(
+        value, 
+        'n8n', 
+        'make'
+      );
+      expect(transformed).toBe('1');
+    });
+
+    it('should handle string representation of booleans', () => {
+      const value = '1';
+      const transformed = nodeMapper.transformParameterValue(
+        value, 
+        'make', 
+        'n8n'
+      );
+      expect(transformed).toBe(true);
+    });
+
+    it('should return unmodified value for unknown types', () => {
+      const value = { complex: 'object' };
+      const transformed = nodeMapper.transformParameterValue(
+        value, 
+        'n8n', 
+        'make'
+      );
+      expect(transformed).toEqual(value);
     });
   });
 }); 
