@@ -1,26 +1,18 @@
 /**
  * Node mapping extraction script
  * 
- * This script extracts node definitions from n8n source code on GitHub and generates
+ * This script extracts node definitions from n8n source code and generates
  * mappings in the format required by the n8n-make-converter.
  * 
  * Usage:
- * Run: npm run extract-mappings
- * 
- * No need to clone the n8n repository locally - this script pulls directly from GitHub!
+ * 1. Clone the n8n repository: git clone https://github.com/n8n-io/n8n.git
+ * 2. Set the N8N_SRC_PATH environment variable to point to the n8n repository
+ * 3. Run: npm run extract-mappings
  */
 
 import * as fs from 'fs';
 import * as path from 'path';
-import fetch from 'node-fetch';
 import { NodeMappingDatabase, NodeMapping, OperationMapping, ParameterMapping } from '../lib/node-mappings/schema';
-
-// GitHub repository configuration
-const GITHUB_REPO_OWNER = 'n8n-io';
-const GITHUB_REPO_NAME = 'n8n';
-const GITHUB_BRANCH = 'master';
-const GITHUB_API_URL = 'https://api.github.com';
-const GITHUB_TOKEN = process.env.GITHUB_TOKEN || ''; // Optional: Set a GitHub token to increase rate limits
 
 // Popular services to prioritize in extraction
 const PRIORITY_SERVICES = [
@@ -76,14 +68,9 @@ const PRIORITY_SERVICES = [
 ];
 
 // Configuration
+const N8N_SRC_PATH = process.env.N8N_SRC_PATH || '../n8n';
 const OUTPUT_FILE_PATH = path.resolve(__dirname, '../lib/node-mappings/nodes-mapping.json');
 const LOG_FILE_PATH = path.resolve(__dirname, './extraction-log.txt');
-const CACHE_DIR = path.resolve(__dirname, './.cache');
-
-// Ensure cache directory exists
-if (!fs.existsSync(CACHE_DIR)) {
-  fs.mkdirSync(CACHE_DIR, { recursive: true });
-}
 
 // Logging
 function log(message: string, level: 'info' | 'warn' | 'error' = 'info') {
@@ -96,125 +83,9 @@ function log(message: string, level: 'info' | 'warn' | 'error' = 'info') {
 // Clear log file
 fs.writeFileSync(LOG_FILE_PATH, '');
 
-// GitHub API helper class
-class GitHubApiClient {
-  private rateLimitRemaining: number = 5000;
-  private headers: Record<string, string>;
-  private requestCount: number = 0;
-
-  constructor() {
-    this.headers = {
-      'Accept': 'application/vnd.github.v3+json',
-      'User-Agent': 'n8n-make-converter-mapping-extractor'
-    };
-
-    if (GITHUB_TOKEN) {
-      this.headers['Authorization'] = `token ${GITHUB_TOKEN}`;
-      log('Using provided GitHub token for API requests');
-    } else {
-      log('No GitHub token provided. API rate limits will be lower.', 'warn');
-    }
-  }
-
-  /**
-   * Fetch content from GitHub API with rate limit handling
-   */
-  async fetchFromApi(endpoint: string): Promise<any> {
-    this.requestCount++;
-    
-    // Simple rate limit handling - add delay if making many requests
-    if (this.requestCount > 10 && this.requestCount % 10 === 0) {
-      log(`Made ${this.requestCount} requests, adding delay to avoid rate limits...`);
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    }
-
-    const url = `${GITHUB_API_URL}${endpoint}`;
-    log(`Fetching from GitHub API: ${url}`);
-    
-    try {
-      const response = await fetch(url, { headers: this.headers });
-      
-      // Update rate limit info
-      this.rateLimitRemaining = parseInt(response.headers.get('x-ratelimit-remaining') || '5000', 10);
-      
-      if (this.rateLimitRemaining < 10) {
-        log(`GitHub API rate limit running low: ${this.rateLimitRemaining} requests remaining!`, 'warn');
-      }
-      
-      if (!response.ok) {
-        throw new Error(`GitHub API error (${response.status}): ${await response.text()}`);
-      }
-      
-      return await response.json();
-    } catch (error) {
-      log(`API fetch failed: ${(error as Error).message}`, 'error');
-      throw error;
-    }
-  }
-
-  /**
-   * Get contents of a directory in the repository
-   */
-  async getDirectoryContents(path: string): Promise<any[]> {
-    const cacheFile = `${CACHE_DIR}/dir_${path.replace(/\//g, '_')}.json`;
-    
-    // Check if cached result exists and is less than 1 day old
-    if (fs.existsSync(cacheFile)) {
-      const stats = fs.statSync(cacheFile);
-      const cacheAge = Date.now() - stats.mtimeMs;
-      
-      if (cacheAge < 24 * 60 * 60 * 1000) { // 24 hours
-        log(`Using cached directory listing for ${path}`);
-        return JSON.parse(fs.readFileSync(cacheFile, 'utf-8'));
-      }
-    }
-    
-    const endpoint = `/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/contents/${path}?ref=${GITHUB_BRANCH}`;
-    const result = await this.fetchFromApi(endpoint);
-    
-    // Cache the result
-    fs.writeFileSync(cacheFile, JSON.stringify(result));
-    
-    return result;
-  }
-
-  /**
-   * Get the content of a specific file
-   */
-  async getFileContent(path: string): Promise<string> {
-    const cacheFile = `${CACHE_DIR}/file_${path.replace(/\//g, '_')}.txt`;
-    
-    // Check if cached result exists and is less than 1 day old
-    if (fs.existsSync(cacheFile)) {
-      const stats = fs.statSync(cacheFile);
-      const cacheAge = Date.now() - stats.mtimeMs;
-      
-      if (cacheAge < 24 * 60 * 60 * 1000) { // 24 hours
-        log(`Using cached file content for ${path}`);
-        return fs.readFileSync(cacheFile, 'utf-8');
-      }
-    }
-    
-    const endpoint = `/repos/${GITHUB_REPO_OWNER}/${GITHUB_REPO_NAME}/contents/${path}?ref=${GITHUB_BRANCH}`;
-    const result = await this.fetchFromApi(endpoint);
-    
-    if (!result.content) {
-      throw new Error(`No content found for file ${path}`);
-    }
-    
-    // GitHub API returns base64 encoded content
-    const content = Buffer.from(result.content, 'base64').toString('utf-8');
-    
-    // Cache the result
-    fs.writeFileSync(cacheFile, content);
-    
-    return content;
-  }
-}
-
 // Main extractor class
 class NodeExtractor {
-  private apiClient: GitHubApiClient;
+  private nodesPath: string;
   private nodeFiles: string[] = [];
   private mappingDatabase: NodeMappingDatabase = {
     version: '1.0.0',
@@ -223,57 +94,52 @@ class NodeExtractor {
   };
 
   constructor() {
-    this.apiClient = new GitHubApiClient();
-    log('Node extractor initialized. Will fetch node definitions from GitHub.');
+    this.nodesPath = path.join(N8N_SRC_PATH, 'packages/nodes-base/nodes');
+    
+    if (!fs.existsSync(this.nodesPath)) {
+      throw new Error(`n8n nodes directory not found at ${this.nodesPath}. Please set N8N_SRC_PATH correctly.`);
+    }
+    
+    log(`Using n8n nodes directory: ${this.nodesPath}`);
   }
 
   /**
-   * Find all node definition files in the repository
+   * Find all node definition files
    */
-  async findNodeFiles() {
-    log('Finding node definition files from GitHub...');
+  public findNodeFiles() {
+    log('Finding node definition files...');
     
-    // The base nodes directory in n8n repository
-    const nodesBasePath = 'packages/nodes-base/nodes';
-    
-    // Function to recursively find node files in directories
-    const findFiles = async (dirPath: string): Promise<string[]> => {
+    const findFiles = (dir: string): string[] => {
       const files: string[] = [];
+      const items = fs.readdirSync(dir);
       
-      try {
-        const contents = await this.apiClient.getDirectoryContents(dirPath);
+      for (const item of items) {
+        const fullPath = path.join(dir, item);
+        const stat = fs.statSync(fullPath);
         
-        for (const item of contents) {
-          if (item.type === 'dir') {
-            // Recursively search in this directory
-            const subDirFiles = await findFiles(item.path);
-            files.push(...subDirFiles);
-          } else if (
-            item.type === 'file' && 
-            (item.name.endsWith('.node.ts') || item.name.endsWith('.Node.ts')) && 
-            !item.name.includes('description.ts')
-          ) {
-            files.push(item.path);
-          }
+        if (stat.isDirectory()) {
+          files.push(...findFiles(fullPath));
+        } else if (
+          (item.endsWith('.node.ts') || item.endsWith('.Node.ts')) && 
+          !item.includes('description.ts')
+        ) {
+          files.push(fullPath);
         }
-      } catch (error) {
-        log(`Error searching directory ${dirPath}: ${(error as Error).message}`, 'error');
       }
       
       return files;
     };
     
-    this.nodeFiles = await findFiles(nodesBasePath);
-    log(`Found ${this.nodeFiles.length} node definition files on GitHub`);
+    this.nodeFiles = findFiles(this.nodesPath);
+    log(`Found ${this.nodeFiles.length} node definition files`);
   }
 
   /**
    * Parse a node definition file to extract key information
    */
-  private async parseNodeFile(filePath: string): Promise<NodeMapping | null> {
+  private parseNodeFile(filePath: string): NodeMapping | null {
     try {
-      const fileContent = await this.apiClient.getFileContent(filePath);
-      const fileName = path.basename(filePath, '.node.ts');
+      const fileContent = fs.readFileSync(filePath, 'utf-8');
       
       // Extract display name from class definition
       const displayNameMatch = fileContent.match(/displayName\s*=\s*['"]([^'"]+)['"]/);
@@ -364,6 +230,7 @@ class NodeExtractor {
       const n8nTypeCategory = categoryMatch ? 'Action' : 'Trigger';
 
       // Guess Make module name based on n8n node name
+      const fileName = path.basename(filePath, '.node.ts');
       const serviceName = fileName.replace(/([A-Z])/g, ' $1').trim();
       
       // Return the structured data
@@ -388,9 +255,9 @@ class NodeExtractor {
   }
 
   /**
-   * Process node files and generate mappings
+   * Process all node files and generate mappings
    */
-  async processNodeFiles() {
+  public processNodeFiles() {
     log('Processing node files...');
     
     let processedCount = 0;
@@ -405,7 +272,7 @@ class NodeExtractor {
       );
       
       if (isPriority) {
-        const nodeMapping = await this.parseNodeFile(file);
+        const nodeMapping = this.parseNodeFile(file);
         
         if (nodeMapping) {
           const key = path.basename(file, '.node.ts').toLowerCase();
@@ -413,11 +280,6 @@ class NodeExtractor {
           processedCount++;
           log(`Processed priority node: ${key}`);
         }
-      }
-      
-      // Add reasonable delay every few files to avoid rate limits
-      if (processedCount > 0 && processedCount % 5 === 0) {
-        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
     
@@ -432,17 +294,12 @@ class NodeExtractor {
       // Skip if already processed as a priority
       if (this.mappingDatabase.mappings[key]) continue;
       
-      const nodeMapping = await this.parseNodeFile(file);
+      const nodeMapping = this.parseNodeFile(file);
       
       if (nodeMapping) {
         this.mappingDatabase.mappings[key] = nodeMapping;
         processedCount++;
         log(`Processed node: ${key}`);
-      }
-      
-      // Add reasonable delay every few files to avoid rate limits
-      if (processedCount % 5 === 0) {
-        await new Promise(resolve => setTimeout(resolve, 500));
       }
     }
     
@@ -452,7 +309,7 @@ class NodeExtractor {
   /**
    * Save the generated mappings to a JSON file
    */
-  saveMappings() {
+  public saveMappings() {
     try {
       const jsonContent = JSON.stringify(this.mappingDatabase, null, 2);
       fs.writeFileSync(OUTPUT_FILE_PATH, jsonContent);
@@ -466,10 +323,10 @@ class NodeExtractor {
   /**
    * Run the entire extraction process
    */
-  async run() {
+  public run() {
     try {
-      await this.findNodeFiles();
-      await this.processNodeFiles();
+      this.findNodeFiles();
+      this.processNodeFiles();
       this.saveMappings();
       log('Extraction completed successfully');
     } catch (error) {
@@ -479,12 +336,10 @@ class NodeExtractor {
 }
 
 // Run the extractor
-(async () => {
-  try {
-    log('Starting n8n node mapping extraction from GitHub');
-    const extractor = new NodeExtractor();
-    await extractor.run();
-  } catch (error) {
-    log(`Failed to run extractor: ${(error as Error).message}`, 'error');
-  }
-})(); 
+try {
+  log('Starting n8n node mapping extraction');
+  const extractor = new NodeExtractor();
+  extractor.run();
+} catch (error) {
+  log(`Failed to run extractor: ${(error as Error).message}`, 'error');
+} 

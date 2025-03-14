@@ -160,42 +160,37 @@ Example mapping entry:
 
 ## Extracting Mappings from n8n Source Code
 
-The repository includes an automated extraction script that directly fetches node definitions from n8n's GitHub repository and generates mappings compatible with the node mapping system. This significantly reduces the manual effort required to maintain node mappings and eliminates the need to clone the n8n repository locally.
+The repository includes an automated extraction script that parses node definitions from n8n's source code and generates mappings compatible with the node mapping system. This significantly reduces the manual effort required to maintain node mappings.
 
 ### Using the Extraction Script
 
-To use the extraction script, simply run:
+To use the extraction script, follow these steps:
 
-```bash
-npm run extract-mappings
-```
+1. **Clone the n8n repository**:
+   ```bash
+   git clone https://github.com/n8n-io/n8n.git
+   ```
 
-That's it! The script will automatically:
-- Connect to the n8n GitHub repository
-- Fetch and parse node definition files
+2. **Set the N8N_SRC_PATH environment variable** to point to your local n8n repository:
+   ```bash
+   # On Unix/Linux/MacOS
+   export N8N_SRC_PATH=/path/to/n8n
+   
+   # On Windows
+   set N8N_SRC_PATH=C:\path\to\n8n
+   ```
+
+3. **Run the extraction script**:
+   ```bash
+   npm run extract-mappings
+   ```
+
+The script will:
+- Parse n8n node definition files to extract metadata about nodes
 - Generate structured mappings compatible with our schema
 - Prioritize popular services defined in the script
 - Save the mappings to `lib/node-mappings/nodes-mapping.json`
 - Create a detailed log file at `scripts/extraction-log.txt`
-
-### Improving Performance with GitHub Token (Optional)
-
-For better performance and higher API rate limits, you can provide a GitHub personal access token:
-
-```bash
-# Set your GitHub token as an environment variable
-export GITHUB_TOKEN=your_github_token_here
-
-# Then run the extraction script
-npm run extract-mappings
-```
-
-### Script Features
-
-- **Intelligent Caching**: The script caches GitHub API responses to reduce API calls and speed up subsequent runs
-- **Rate Limit Handling**: Built-in delays and rate limit monitoring to avoid GitHub API restrictions
-- **Prioritized Extraction**: Processes the most common services first (Slack, Airtable, Google, etc.)
-- **Error Handling**: Graceful error recovery and detailed logging
 
 ### Script Capabilities and Limitations
 
