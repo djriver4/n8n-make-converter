@@ -1,0 +1,349 @@
+{
+  "version": "1.0.0",
+  "lastUpdated": "2023-11-15",
+  "mappings": {
+    "httpRequest": {
+      "n8nNodeType": "n8n-nodes-base.httpRequest",
+      "n8nDisplayName": "HTTP Request",
+      "makeModuleId": "http",
+      "makeModuleName": "HTTP",
+      "n8nTypeCategory": "Action",
+      "makeTypeCategory": "App",
+      "description": "Make a HTTP request and receive the response",
+      "documentationUrl": {
+        "n8n": "https://docs.n8n.io/integrations/builtin/core-nodes/n8n-nodes-base.httprequest/",
+        "make": "https://www.make.com/en/help/tools/http"
+      },
+      "operations": [
+        {
+          "n8nName": "GET",
+          "makeName": "get",
+          "description": "Make a GET request",
+          "parameters": [
+            {
+              "n8nName": "url",
+              "makeName": "url",
+              "type": "string",
+              "required": true,
+              "description": "The URL to make the request to"
+            },
+            {
+              "n8nName": "headers",
+              "makeName": "headers",
+              "type": "object",
+              "required": false,
+              "description": "Request headers"
+            },
+            {
+              "n8nName": "queryParameters",
+              "makeName": "queryParameters",
+              "type": "object",
+              "required": false,
+              "description": "Query parameters"
+            },
+            {
+              "n8nName": "authentication",
+              "makeName": "authentication",
+              "type": "string",
+              "required": false,
+              "description": "The authentication to use"
+            }
+          ]
+        },
+        {
+          "n8nName": "POST",
+          "makeName": "post",
+          "description": "Make a POST request",
+          "parameters": [
+            {
+              "n8nName": "url",
+              "makeName": "url",
+              "type": "string",
+              "required": true,
+              "description": "The URL to make the request to"
+            },
+            {
+              "n8nName": "headers",
+              "makeName": "headers",
+              "type": "object",
+              "required": false,
+              "description": "Request headers"
+            },
+            {
+              "n8nName": "queryParameters",
+              "makeName": "queryParameters",
+              "type": "object",
+              "required": false,
+              "description": "Query parameters"
+            },
+            {
+              "n8nName": "body",
+              "makeName": "body",
+              "type": "object",
+              "required": false,
+              "description": "Request body"
+            },
+            {
+              "n8nName": "bodyContentType",
+              "makeName": "contentType",
+              "type": "string",
+              "required": false,
+              "description": "Content-Type of the request body",
+              "options": [
+                {
+                  "name": "JSON",
+                  "value": "application/json"
+                },
+                {
+                  "name": "Form-Data",
+                  "value": "multipart/form-data"
+                },
+                {
+                  "name": "Form-Urlencoded",
+                  "value": "application/x-www-form-urlencoded"
+                },
+                {
+                  "name": "Text",
+                  "value": "text/plain"
+                },
+                {
+                  "name": "Raw",
+                  "value": "raw"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "n8nName": "PUT",
+          "makeName": "put",
+          "description": "Make a PUT request",
+          "parameters": [
+            {
+              "n8nName": "url",
+              "makeName": "url",
+              "type": "string",
+              "required": true,
+              "description": "The URL to make the request to"
+            },
+            {
+              "n8nName": "headers",
+              "makeName": "headers",
+              "type": "object",
+              "required": false,
+              "description": "Request headers"
+            },
+            {
+              "n8nName": "queryParameters",
+              "makeName": "queryParameters",
+              "type": "object",
+              "required": false,
+              "description": "Query parameters"
+            },
+            {
+              "n8nName": "body",
+              "makeName": "body",
+              "type": "object",
+              "required": false,
+              "description": "Request body"
+            },
+            {
+              "n8nName": "bodyContentType",
+              "makeName": "contentType",
+              "type": "string",
+              "required": false,
+              "description": "Content-Type of the request body"
+            }
+          ]
+        },
+        {
+          "n8nName": "DELETE",
+          "makeName": "delete",
+          "description": "Make a DELETE request",
+          "parameters": [
+            {
+              "n8nName": "url",
+              "makeName": "url",
+              "type": "string",
+              "required": true,
+              "description": "The URL to make the request to"
+            },
+            {
+              "n8nName": "headers",
+              "makeName": "headers",
+              "type": "object",
+              "required": false,
+              "description": "Request headers"
+            },
+            {
+              "n8nName": "queryParameters",
+              "makeName": "queryParameters",
+              "type": "object",
+              "required": false,
+              "description": "Query parameters"
+            }
+          ]
+        }
+      ],
+      "credentials": [
+        {
+          "n8nType": "httpBasicAuth",
+          "makeType": "basic",
+          "fields": [
+            {
+              "n8nName": "user",
+              "makeName": "username",
+              "type": "string"
+            },
+            {
+              "n8nName": "password",
+              "makeName": "password",
+              "type": "string"
+            }
+          ]
+        }
+      ]
+    },
+    "googleSheets": {
+      "n8nNodeType": "n8n-nodes-base.googleSheets",
+      "n8nDisplayName": "Google Sheets",
+      "makeModuleId": "google-sheets",
+      "makeModuleName": "Google Sheets",
+      "n8nTypeCategory": "Action",
+      "makeTypeCategory": "App",
+      "description": "Read, write and update data in Google Sheets",
+      "documentationUrl": {
+        "n8n": "https://docs.n8n.io/integrations/builtin/app-nodes/n8n-nodes-base.googlesheets/",
+        "make": "https://www.make.com/en/help/apps/office-and-productivity/google-sheets"
+      },
+      "operations": [
+        {
+          "n8nName": "read",
+          "makeName": "selectRows",
+          "description": "Read data from a Google Sheet",
+          "parameters": [
+            {
+              "n8nName": "sheetId",
+              "makeName": "spreadsheetId",
+              "type": "string",
+              "required": true,
+              "description": "The ID of the Google Sheet"
+            },
+            {
+              "n8nName": "range",
+              "makeName": "range",
+              "type": "string",
+              "required": true,
+              "description": "The range to read (e.g. 'Sheet1!A1:C10')"
+            },
+            {
+              "n8nName": "options",
+              "makeName": "options",
+              "type": "object",
+              "required": false,
+              "description": "Additional options"
+            }
+          ]
+        },
+        {
+          "n8nName": "append",
+          "makeName": "appendValues",
+          "description": "Append data to a Google Sheet",
+          "parameters": [
+            {
+              "n8nName": "sheetId",
+              "makeName": "spreadsheetId",
+              "type": "string",
+              "required": true,
+              "description": "The ID of the Google Sheet"
+            },
+            {
+              "n8nName": "range",
+              "makeName": "range",
+              "type": "string",
+              "required": true,
+              "description": "The range to append to (e.g. 'Sheet1!A1')"
+            },
+            {
+              "n8nName": "values",
+              "makeName": "values",
+              "type": "array",
+              "required": true,
+              "description": "The values to append"
+            },
+            {
+              "n8nName": "options",
+              "makeName": "options",
+              "type": "object",
+              "required": false,
+              "description": "Additional options"
+            }
+          ]
+        },
+        {
+          "n8nName": "update",
+          "makeName": "updateValues",
+          "description": "Update data in a Google Sheet",
+          "parameters": [
+            {
+              "n8nName": "sheetId",
+              "makeName": "spreadsheetId",
+              "type": "string",
+              "required": true,
+              "description": "The ID of the Google Sheet"
+            },
+            {
+              "n8nName": "range",
+              "makeName": "range",
+              "type": "string",
+              "required": true,
+              "description": "The range to update (e.g. 'Sheet1!A1:C10')"
+            },
+            {
+              "n8nName": "values",
+              "makeName": "values",
+              "type": "array",
+              "required": true,
+              "description": "The values to update"
+            },
+            {
+              "n8nName": "options",
+              "makeName": "options",
+              "type": "object",
+              "required": false,
+              "description": "Additional options"
+            }
+          ]
+        }
+      ],
+      "credentials": [
+        {
+          "n8nType": "googleApi",
+          "makeType": "oauth",
+          "fields": [
+            {
+              "n8nName": "clientId",
+              "makeName": "client_id",
+              "type": "string"
+            },
+            {
+              "n8nName": "clientSecret",
+              "makeName": "client_secret",
+              "type": "string"
+            },
+            {
+              "n8nName": "accessToken",
+              "makeName": "access_token",
+              "type": "string"
+            },
+            {
+              "n8nName": "refreshToken",
+              "makeName": "refresh_token",
+              "type": "string"
+            }
+          ]
+        }
+      ]
+    }
+  }
+} 
