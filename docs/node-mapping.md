@@ -160,14 +160,70 @@ Example mapping entry:
 
 ## Extracting Mappings from n8n Source Code
 
-You can automate the extraction of node definitions from n8n's `nodes-base` package to populate initial mappings. This process typically involves:
+The repository includes an automated extraction script that parses node definitions from n8n's source code and generates mappings compatible with the node mapping system. This significantly reduces the manual effort required to maintain node mappings.
 
-1. Parsing the n8n node definition files
-2. Extracting relevant information about parameters, operations, etc.
-3. Mapping these to Make.com equivalents
-4. Generating or updating the `nodes-mapping.json` file
+### Using the Extraction Script
 
-A simple script to assist with this process can be found in the `scripts` directory.
+To use the extraction script, follow these steps:
+
+1. **Clone the n8n repository**:
+   ```bash
+   git clone https://github.com/n8n-io/n8n.git
+   ```
+
+2. **Set the N8N_SRC_PATH environment variable** to point to your local n8n repository:
+   ```bash
+   # On Unix/Linux/MacOS
+   export N8N_SRC_PATH=/path/to/n8n
+   
+   # On Windows
+   set N8N_SRC_PATH=C:\path\to\n8n
+   ```
+
+3. **Run the extraction script**:
+   ```bash
+   npm run extract-mappings
+   ```
+
+The script will:
+- Parse n8n node definition files to extract metadata about nodes
+- Generate structured mappings compatible with our schema
+- Prioritize popular services defined in the script
+- Save the mappings to `lib/node-mappings/nodes-mapping.json`
+- Create a detailed log file at `scripts/extraction-log.txt`
+
+### Script Capabilities and Limitations
+
+**What the script extracts:**
+- Basic node information (node type, display name, description)
+- Operations and methods
+- Basic parameter information (name, type, required, description)
+- Documentation URLs
+- Node type categorization
+
+**Limitations to be aware of:**
+- Make.com mappings are approximations and will need manual review
+- Complex parameter transformations require manual adjustments
+- Not all node properties can be automatically extracted
+- Custom nodes or nodes with unusual structures may not extract correctly
+
+### Manual Adjustments
+
+After running the extraction script, review the generated mappings and make manual adjustments where necessary:
+
+1. **Make.com Module IDs and Names**: Correct the `makeModuleId` and `makeModuleName` fields to match actual Make.com modules
+2. **Operation Mappings**: Ensure operations map correctly between platforms
+3. **Parameter Mappings**: Verify parameter names, types, and required flags
+4. **Credential Mappings**: Add or adjust credential mappings which aren't fully extracted
+
+### Maintaining the Node Mappings
+
+Best practices for maintaining the node mappings:
+
+1. Run the extraction script periodically to identify new n8n nodes
+2. Maintain a separate file for manual adjustments that can be merged with the auto-generated mappings
+3. Test all mappings with real workflows to ensure they convert correctly
+4. Document any special cases or complex mappings in code comments
 
 ## Testing
 

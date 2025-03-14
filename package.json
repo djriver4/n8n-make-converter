@@ -10,7 +10,8 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
-    "test:regression": "ts-node __tests__/regression/test-runner.ts"
+    "test:regression": "ts-node __tests__/regression/test-runner.ts",
+    "extract-mappings": "ts-node scripts/extract-n8n-mappings.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
