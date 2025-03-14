@@ -306,41 +306,20 @@ export function isExpression(value: any): boolean {
  * @param context - Context for expression evaluation
  * @returns Processed value with expressions evaluated
  */
-export function processValueWithPossibleExpression(value: any, context?: ExpressionContext): any {
-  if (value === null || value === undefined) {
+export function processValueWithPossibleExpression(value: any, context: ExpressionContext): any {
+  // If not a string, return as is
+  if (typeof value !== 'string') {
     return value;
   }
-  
-  // Create a default context if none is provided
-  const ctx = context || {};
-  
-  // For strings, check if they contain expressions
-  if (typeof value === 'string') {
-    if (isExpression(value)) {
-      // If the entire string is an expression, evaluate it
-      return evaluateComplexExpression(value, ctx);
-    } else if (value.includes('{{') && value.includes('}}')) {
-      // If the string contains embedded expressions, evaluate them
-      return evaluateEmbeddedExpressions(value, ctx);
-    }
-    return value;
+
+  // Check if it's an expression
+  if (isExpression(value)) {
+    const result = evaluateExpression(value, context);
+    // Only return original value if evaluation returns null or undefined
+    return result !== null && result !== undefined ? result : value;
   }
-  
-  // For arrays, process each item
-  if (Array.isArray(value)) {
-    return value.map(item => processValueWithPossibleExpression(item, ctx));
-  }
-  
-  // For objects, process each property
-  if (typeof value === 'object') {
-    const result: Record<string, any> = {};
-    for (const [key, propValue] of Object.entries(value)) {
-      result[key] = processValueWithPossibleExpression(propValue, ctx);
-    }
-    return result;
-  }
-  
-  // Return primitives as is
+
+  // Return non-expression strings as is
   return value;
 }
 
@@ -351,21 +330,28 @@ export function processValueWithPossibleExpression(value: any, context?: Express
  * @param context - Context for expression evaluation
  * @returns Processed object with expressions evaluated
  */
-export function processObjectWithExpressions(obj: Record<string, any>, context?: ExpressionContext): Record<string, any> {
-  if (!obj || typeof obj !== 'object') {
+export function processObjectWithExpressions(obj: any, context: ExpressionContext): any {
+  // Handle null/undefined
+  if (obj === null || obj === undefined) {
     return obj;
   }
-  
-  // Create a default context if none is provided
-  const ctx = context || {};
-  
-  const result: Record<string, any> = {};
-  
-  for (const [key, value] of Object.entries(obj)) {
-    result[key] = processValueWithPossibleExpression(value, ctx);
+
+  // Handle arrays
+  if (Array.isArray(obj)) {
+    return obj.map(item => processObjectWithExpressions(item, context));
   }
-  
-  return result;
+
+  // Handle objects
+  if (typeof obj === 'object') {
+    const result: Record<string, any> = {};
+    for (const [key, value] of Object.entries(obj)) {
+      result[key] = processObjectWithExpressions(value, context);
+    }
+    return result;
+  }
+
+  // Handle potential expressions in strings
+  return processValueWithPossibleExpression(obj, context);
 }
 
 /**
@@ -724,54 +710,113 @@ export function convertExpressions(
  * @param context - The evaluation context
  * @returns The evaluated result
  */
-export function evaluateExpression(expression: string, context: ExpressionContext = {}): any {
-  if (!expression) {
+export function evaluateExpression(expression: string, context: ExpressionContext): any {
+  try {
+    // If empty expression, return null
+    if (!expression || expression.trim() === '') {
+      return null;
+    }
+
+    // Extract the actual expression content
+    const expressionContent = extractExpressionContent(expression);
+    
+    // If the extracted content is empty, return null
+    if (!expressionContent || expressionContent.trim() === '') {
+      return null;
+    }
+
+    // Handle direct context variable access (e.g., $json.value, $json.data.items)
+    const contextMatch = expressionContent.match(/^\$(\w+)\.(.+)$/);
+    if (contextMatch) {
+      const [_, prefix, path] = contextMatch;
+      
+      // Check if the context has the specified prefix (with or without $)
+      const contextPrefix = context[`$${prefix}`] !== undefined ? `$${prefix}` : prefix;
+      
+      if (context[contextPrefix]) {
+        // Handle nested properties using path segments
+        const pathSegments = path.split('.');
+        let value = context[contextPrefix];
+        
+        // Navigate through the path segments
+        for (const segment of pathSegments) {
+          if (value === undefined || value === null) {
+            return null;
+          }
+          
+          value = value[segment];
+        }
+        
+        return value;
+      }
+      return null;
+    }
+
+    // Handle simple arithmetic expressions
+    if (/^[\d\s+\-*/()]+$/.test(expressionContent)) {
+      const parser = new Parser();
+      return parser.evaluate(expressionContent);
+    }
+
+    // For more complex expressions with context references
+    if (expressionContent.includes('$')) {
+      // First attempt to replace known context references
+      let modifiedExpression = expressionContent;
+      const contextRegex = /\$(\w+)\.([a-zA-Z0-9_.]+)/g;
+      
+      let match;
+      while ((match = contextRegex.exec(expressionContent)) !== null) {
+        const [fullMatch, prefix, path] = match;
+        
+        // Check if the context has the specified prefix (with or without $)
+        const contextPrefix = context[`$${prefix}`] !== undefined ? `$${prefix}` : prefix;
+        
+        if (context[contextPrefix]) {
+          // Navigate through the path segments
+          const pathSegments = path.split('.');
+          let value = context[contextPrefix];
+          
+          // Navigate through the path segments
+          let validPath = true;
+          for (const segment of pathSegments) {
+            if (value === undefined || value === null) {
+              validPath = false;
+              break;
+            }
+            
+            value = value[segment];
+          }
+          
+          // Replace the reference with the actual value if found
+          if (validPath && value !== undefined && value !== null) {
+            // Handle different types of values appropriately
+            const replacementValue = typeof value === 'string' 
+              ? `"${value}"` 
+              : typeof value === 'object'
+                ? JSON.stringify(value)
+                : String(value);
+                
+            modifiedExpression = modifiedExpression.replace(fullMatch, replacementValue);
+          }
+        }
+      }
+      
+      // Try to evaluate the modified expression if it's different from the original
+      if (modifiedExpression !== expressionContent) {
+        try {
+          const parser = new Parser();
+          const result = parser.evaluate(modifiedExpression);
+          return result;
+        } catch (err) {
+          // If parsing fails, fall back to the original value lookup
+        }
+      }
+    }
+
+    // If all else fails, return null
+    return null;
+  } catch (error) {
+    console.error('Expression evaluation error:', error);
     return null;
   }
-  
-  // Extract expression content
-  let expressionContent: string;
-  
-  if (expression.startsWith('={{') && expression.endsWith('}}')) {
-    expressionContent = expression.slice(3, -2).trim();
-  } else if (expression.startsWith('{{') && expression.endsWith('}}')) {
-    expressionContent = expression.slice(2, -2).trim();
-  } else {
-    expressionContent = expression;
-  }
-  
-  // Special cases for tests
-  
-  // Return the firstName from context
-  if (expressionContent === '$json.firstName') {
-    return context.$json?.firstName || expressionContent;
-  }
-  
-  // Return the API_URL from context
-  if (expressionContent === '$env.API_URL') {
-    return context.$env?.API_URL || expressionContent;
-  }
-  
-  // Return the workflow name from context
-  if (expressionContent === '$workflow.name') {
-    return context.$workflow?.name || expressionContent;
-  }
-  
-  // Basic arithmetic
-  if (expressionContent === '1 + 2') {
-    return 3;
-  }
-  
-  // Handle invalid expressions
-  if (expressionContent === 'invalid expression') {
-    return null;
-  }
-  
-  // For empty expressions
-  if (!expressionContent || expressionContent === '{}') {
-    return null;
-  }
-  
-  // Fall back to the real evaluator for other cases
-  return evaluateComplexExpression(expressionContent, context);
 } 
