@@ -103,9 +103,220 @@ const mockMappingDatabase: NodeMappingDatabase = {
         version: "1.0",
       },
       parameterMappings: {}
+    },
+    "setVariable": {
+      source: "make",
+      sourceNodeType: "setVariable", 
+      targetNodeType: "n8n-nodes-base.set",
+      metadata: {
+        displayName: "Set",
+        description: "Set variables in n8n",
+        version: "1.0",
+      },
+      parameterMappings: {
+        variables: {
+          sourcePath: "variables",
+          targetPath: "values"
+        }
+      }
     }
   }
 };
+
+describe('End-to-End Workflow Conversion', () => {
+  describe('n8n to Make Conversion', () => {
+    it('should convert n8n workflow to Make format', async () => {
+      const n8nWorkflow: N8nWorkflow = {
+        name: 'Test Workflow',
+        active: true,
+        nodes: [
+          {
+            id: '1',
+            name: 'HTTP Request',
+            type: 'n8n-nodes-base.httpRequest',
+            parameters: {
+              url: 'https://example.com',
+              method: 'GET'
+            }
+          }
+        ],
+        connections: {}
+      };
+
+      const result = await convertN8nToMake(n8nWorkflow);
+      expect(result.convertedWorkflow).toBeDefined();
+      const makeWorkflow = result.convertedWorkflow as MakeWorkflow;
+      expect(makeWorkflow.modules).toBeDefined();
+      expect(Array.isArray(makeWorkflow.modules)).toBe(true);
+    });
+
+    // This test was previously skipped due to issues with the node mapper implementation
+    // Now fixed with specialized handlers for Set/setVariable conversion
+    it('should handle expression conversion', async () => {
+      const n8nWorkflow: N8nWorkflow = {
+        name: 'Test Workflow',
+        active: true,
+        nodes: [
+          {
+            id: '1',
+            name: 'Set',
+            type: 'n8n-nodes-base.set',
+            parameters: {
+              values: {
+                string: { value: '={{ $json.name }}' },
+                number: { value: '={{ $json.count * 2 }}' },
+                boolean: { value: '={{ $json.active === true }}' },
+                object: { value: '={{ { firstName: $json.firstName, lastName: $json.lastName } }}' },
+                combined: { value: 'Hello, {{ $json.name }}!' }
+              }
+            }
+          }
+        ],
+        connections: {}
+      };
+
+      // Create a custom converter with our mock mapping database
+      const converter = new WorkflowConverter(mockMappingDatabase);
+      
+      // Debug the mapping database
+      console.log('Mapping database mappings:', Object.keys(mockMappingDatabase.mappings));
+      
+      // Debug the n8n node type
+      console.log('n8n node type:', n8nWorkflow.nodes[0].type);
+      
+      // Skip validation for test purposes
+      const result = converter.convertN8nToMake(n8nWorkflow, {
+        skipValidation: true
+      });
+      
+      // Debug the conversion result
+      console.log('Conversion result:', JSON.stringify(result, null, 2));
+      console.log('Converted workflow modules length:', 
+        (result.convertedWorkflow as MakeWorkflow).modules?.length);
+      if (result.unmappedNodes && result.unmappedNodes.length > 0) {
+        console.log('Unmapped nodes:', result.unmappedNodes);
+      }
+      
+      expect(result.convertedWorkflow).toBeDefined();
+      const makeWorkflow = result.convertedWorkflow as MakeWorkflow;
+      expect(makeWorkflow.modules).toBeDefined();
+      expect(makeWorkflow.modules.length).toBeGreaterThan(0);
+
+      const makeModule = makeWorkflow.modules[0];
+      expect(makeModule).toBeDefined();
+      expect(makeModule.parameters).toBeDefined();
+
+      const makeParams = makeModule.parameters;
+      if (!makeParams) {
+        throw new Error('Make module parameters are undefined');
+      }
+
+      const values = makeParams.variables as Record<string, { value: string }>;
+      if (!values) {
+        throw new Error('Make module values are undefined');
+      }
+
+      expect(values).toMatchObject({
+        string: { value: '{{1.name}}' },
+        number: { value: '{{1.count * 2}}' },
+        boolean: { value: '{{1.active === true}}' },
+        object: { value: expect.stringContaining('firstName') },
+        combined: { value: 'Hello, {{1.name}}!' }
+      });
+    });
+  });
+
+  describe('Make to n8n Conversion', () => {
+    it('should convert Make workflow to n8n format', async () => {
+      const makeWorkflow: MakeWorkflow = {
+        name: 'Test Workflow',
+        active: true,
+        modules: [
+          {
+            id: '1',
+            name: 'HTTP Request',
+            type: 'http',
+            parameters: {
+              URL: 'https://example.com',
+              method: 'GET'
+            }
+          }
+        ],
+        routes: []
+      };
+
+      const result = await convertMakeToN8n(makeWorkflow);
+      expect(result.convertedWorkflow).toBeDefined();
+      const n8nWorkflow = result.convertedWorkflow as N8nWorkflow;
+      expect(n8nWorkflow.nodes).toBeDefined();
+      expect(Array.isArray(n8nWorkflow.nodes)).toBe(true);
+    });
+
+    // This test was previously skipped due to issues with the node mapper implementation
+    // Now fixed with specialized handlers for Set/setVariable conversion
+    it('should handle expression conversion', async () => {
+      const makeWorkflow: MakeWorkflow = {
+        name: 'Test Workflow',
+        active: true,
+        modules: [
+          {
+            id: '1',
+            name: 'Set Variable',
+            type: 'setVariable',
+            parameters: {
+              variables: {
+                testParam: { value: '={{1.name}}' }
+              }
+            }
+          }
+        ],
+        routes: []
+      };
+
+      // Create a custom converter with our mock mapping database
+      const converter = new WorkflowConverter(mockMappingDatabase);
+      
+      // Debug the mapping database
+      console.log('Mapping database mappings:', Object.keys(mockMappingDatabase.mappings));
+      
+      // Debug the Make module type
+      console.log('Make module type:', makeWorkflow.modules[0].type);
+      
+      // Skip validation for test purposes
+      const result = converter.convertMakeToN8n(makeWorkflow, {
+        skipValidation: true
+      });
+      
+      // Debug the conversion result
+      console.log('Conversion result:', JSON.stringify(result, null, 2));
+      console.log('Converted workflow nodes length:', 
+        (result.convertedWorkflow as N8nWorkflow).nodes?.length);
+      if (result.unmappedNodes && result.unmappedNodes.length > 0) {
+        console.log('Unmapped modules:', result.unmappedNodes);
+      }
+      
+      expect(result.convertedWorkflow).toBeDefined();
+      const n8nWorkflow = result.convertedWorkflow as N8nWorkflow;
+      expect(n8nWorkflow.nodes).toBeDefined();
+      expect(n8nWorkflow.nodes.length).toBeGreaterThan(0);
+
+      const n8nNode = n8nWorkflow.nodes[0];
+      expect(n8nNode).toBeDefined();
+      expect(n8nNode.parameters).toBeDefined();
+
+      const paramResult = n8nNode.parameters;
+      if (!paramResult) {
+        throw new Error('n8n node parameters are undefined');
+      }
+
+      // Check the structure of values parameter
+      expect(paramResult.values).toBeDefined();
+      const values = paramResult.values as Record<string, { value: string }>;
+      expect(values.testParam).toBeDefined();
+      expect(values.testParam.value).toBe('={{ $json.name }}');
+    });
+  });
+});
 
 describe('Workflow Converter End-to-End Tests', () => {
   // Test data
@@ -287,13 +498,13 @@ describe('Workflow Converter End-to-End Tests', () => {
       const makeParams = NodeParameterProcessor.convertN8nToMakeParameters(n8nParams);
       
       // Verify expression conversion
-      expect(makeParams.values.string.value).toBe('{{1.name}}');
-      expect(makeParams.values.number.value).toBe('{{1.count * 2}}');
-      expect(makeParams.values.boolean.value).toBe('{{1.active === true}}');
-      // Note: The exact format may vary, we're just checking the content is preserved
-      expect(makeParams.values.object.value).toContain('firstName');
-      expect(makeParams.values.object.value).toContain('lastName');
-      expect(makeParams.values.combined.value).toBe('Hello, {{1.name}}!');
+      const values = makeParams.values as Record<string, { value: string }>;
+      expect(values.string.value).toBe('{{1.name}}');
+      expect(values.number.value).toBe('{{1.count * 2}}');
+      expect(values.boolean.value).toBe('{{1.active === true}}');
+      expect(values.object.value).toContain('firstName');
+      expect(values.object.value).toContain('lastName');
+      expect(values.combined.value).toBe('Hello, {{1.name}}!');
     });
   });
   
@@ -370,10 +581,9 @@ describe('Workflow Converter End-to-End Tests', () => {
       
       // Convert a simple expression for testing
       const makeExpr = "{{1.name}}";
-      // Use the public method to convert Make parameters to n8n parameters
       const paramResult = NodeParameterProcessor.convertMakeToN8nParameters({ testParam: makeExpr });
       
-      // Verify the expression was converted correctly
+      // Verify expression conversion
       expect(paramResult.testParam).toBe('={{ $json.name }}');
     });
   });

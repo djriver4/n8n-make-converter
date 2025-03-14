@@ -295,7 +295,7 @@ export class NodeMapper {
     
     // Get the mapping for this node type
     const mapping = this.getNodeMappingByN8nType(nodeType);
-    
+      
     if (!mapping) {
       throw new NodeMappingError(`No mapping found for n8n node type: ${nodeType}`);
     }
@@ -313,9 +313,14 @@ export class NodeMapper {
       makeModule.position = n8nNode.position;
     }
     
-    // Process parameters
-    if (n8nNode.parameters) {
-      this.processN8nParameters(n8nNode.parameters, makeModule.parameters, mapping, options);
+    // Special handling for Set node
+    if (nodeType === 'n8n-nodes-base.set') {
+      this.processSetNodeToSetVariableModule(n8nNode, makeModule, options);
+    } else {
+      // Standard parameter processing for other node types
+      if (n8nNode.parameters) {
+        this.processN8nParameters(n8nNode.parameters, makeModule.parameters, mapping, options);
+      }
     }
     
     // Apply any custom transformations defined in the mapping
@@ -344,6 +349,100 @@ export class NodeMapper {
     }
     
     return result;
+  }
+  
+  /**
+   * Special handler for converting n8n Set node to Make.com setVariable module
+   * This handles the specific data structure differences between these node types
+   * 
+   * @param n8nNode - The n8n Set node
+   * @param makeModule - The Make.com setVariable module being created
+   * @param options - Conversion options
+   */
+  private processSetNodeToSetVariableModule(
+    n8nNode: Record<string, any>,
+    makeModule: Record<string, any>,
+    options: ConversionOptions
+  ): void {
+    // Initialize the variables object for the setVariable module
+    makeModule.parameters.variables = {};
+    
+    // Handle case where values might be an object with key-value pairs
+    if (n8nNode.parameters && n8nNode.parameters.values && typeof n8nNode.parameters.values === 'object') {
+      const values = n8nNode.parameters.values;
+      
+      // Convert from n8n's format to Make's object format
+      for (const [key, config] of Object.entries(values)) {
+        if (typeof config === 'object' && config !== null && 'value' in config) {
+          const typedConfig = config as Record<string, any>;
+          let value = typedConfig.value;
+          
+          // Transform the value if needed
+          if (options.transformParameterValues && typeof value === 'string') {
+            if (value.startsWith('={{') && value.endsWith('}}')) {
+              // Extract the expression content
+              const content = value.slice(3, -2).trim();
+              // Replace $json references with numeric references (1.xxx)
+              const convertedJson = content.replace(/\$json\.(\w+)/g, '1.$1');
+              // Replace $workflow references with numeric references (1.xxx)
+              const converted = convertedJson.replace(/\$workflow\.(\w+)/g, '1.$1');
+              value = `{{${converted}}}`;
+            } else if (value.includes('{{') && value.includes('}}')) {
+              // Handle embedded expressions correctly
+              value = value.replace(/{{\s*(.+?)\s*}}/g, (match: string, content: string) => {
+                const convertedJson = content.replace(/\$json\.(\w+)/g, '1.$1');
+                const convertedWorkflow = convertedJson.replace(/\$workflow\.(\w+)/g, '1.$1');
+                return `{{${convertedWorkflow}}}`;
+              });
+            } else if (value.includes('=$json.') || value.includes('=$workflow.')) {
+              // Handle embedded expressions with equals sign prefix
+              value = value.replace(/=\$json\.(\w+)/g, '{{1.$1}}')
+                           .replace(/=\$workflow\.(\w+)/g, '{{1.$1}}');
+            }
+          }
+          
+          // Store the converted value in Make format
+          makeModule.parameters.variables[key] = { value };
+        }
+      }
+    } 
+    // Handle case where values might be direct parameters
+    else if (n8nNode.parameters) {
+      // Convert any direct parameters
+      for (const [key, value] of Object.entries(n8nNode.parameters)) {
+        // Skip internal properties or metadata
+        if (key === 'values' || key === 'Content-Type') continue;
+        
+        let convertedValue = value;
+        
+        // Transform the value if needed
+        if (options.transformParameterValues && typeof value === 'string') {
+          if (value.startsWith('={{') && value.endsWith('}}')) {
+            // Extract the expression content
+            const content = value.slice(3, -2).trim();
+            // Replace $json references with numeric references (1.xxx)
+            const convertedJson = content.replace(/\$json\.(\w+)/g, '1.$1');
+            // Replace $workflow references with numeric references (1.xxx)
+            const converted = convertedJson.replace(/\$workflow\.(\w+)/g, '1.$1');
+            convertedValue = `{{${converted}}}`;
+          } else if (typeof convertedValue === 'string' && convertedValue.includes('{{') && convertedValue.includes('}}')) {
+            // Handle embedded expressions correctly
+            convertedValue = convertedValue.replace(/{{\s*(.+?)\s*}}/g, (match: string, content: string) => {
+              const convertedJson = content.replace(/\$json\.(\w+)/g, '1.$1');
+              const convertedWorkflow = convertedJson.replace(/\$workflow\.(\w+)/g, '1.$1');
+              return `{{${convertedWorkflow}}}`;
+            });
+          } else if (typeof convertedValue === 'string' && (convertedValue.includes('=$json.') || convertedValue.includes('=$workflow.'))) {
+            // Handle embedded expressions with equals sign prefix
+            convertedValue = convertedValue.replace(/=\$json\.(\w+)/g, '{{1.$1}}')
+                                           .replace(/=\$workflow\.(\w+)/g, '{{1.$1}}');
+          }
+        }
+        
+        // Store the converted value in Make format
+        makeModule.parameters.variables[key] = { value: convertedValue };
+      }
+    }
   }
   
   /**
@@ -446,7 +545,7 @@ export class NodeMapper {
     const mapping = this.getNodeMappingByMakeId(moduleType);
     
     if (!mapping) {
-      throw new NodeMappingError(`No mapping found for Make module type: ${moduleType}`);
+      throw new NodeMappingError(`No mapping found for Make.com module type: ${moduleType}`);
     }
     
     // Create the base n8n node
@@ -462,9 +561,14 @@ export class NodeMapper {
       n8nNode.position = makeModule.position;
     }
     
-    // Process parameters
-    if (makeModule.parameters) {
-      this.processMakeParameters(makeModule.parameters, n8nNode.parameters, mapping, options);
+    // Special handling for setVariable module
+    if (moduleType === 'setVariable') {
+      this.processSetVariableModuleToSetNode(makeModule, n8nNode, options);
+    } else {
+      // Standard parameter processing for other module types
+      if (makeModule.parameters) {
+        this.processMakeParameters(makeModule.parameters, n8nNode.parameters, mapping, options);
+      }
     }
     
     // Apply any custom transformations defined in the mapping
@@ -486,13 +590,97 @@ export class NodeMapper {
     // Include debug info if requested
     if (options.debug) {
       result.debug = {
-        sourceNode: makeModule,
+        sourceModule: makeModule,
         mapping,
         options
       };
     }
     
     return result;
+  }
+
+  /**
+   * Special handler for converting Make.com setVariable module to n8n Set node
+   * This handles the specific data structure differences between these node types
+   * 
+   * @param makeModule - The Make.com setVariable module
+   * @param n8nNode - The n8n Set node being created
+   * @param options - Conversion options
+   */
+  private processSetVariableModuleToSetNode(
+    makeModule: Record<string, any>,
+    n8nNode: Record<string, any>,
+    options: ConversionOptions
+  ): void {
+    // Initialize the values object for the Set node
+    n8nNode.parameters.values = {};
+    
+    // Handle case where variables might be an object with key-value pairs
+    if (makeModule.parameters && makeModule.parameters.variables && typeof makeModule.parameters.variables === 'object') {
+      const variables = makeModule.parameters.variables;
+      
+      // Convert from Make's format to n8n's object format
+      for (const [key, config] of Object.entries(variables)) {
+        if (typeof config === 'object' && config !== null && 'value' in config) {
+          const typedConfig = config as Record<string, any>;
+          let value = typedConfig.value;
+          
+          // Transform the value if needed
+          if (options.transformParameterValues && typeof value === 'string') {
+            if (value.startsWith('={{') && value.endsWith('}}')) {
+              // Already in n8n format, just convert the content
+              const content = value.slice(3, -2).trim();
+              // Convert to n8n format
+              const converted = content.replace(/1\.(\w+)/g, '$json.$1');
+              value = `={{ ${converted} }}`;
+            } else if (value.startsWith('{{') && value.endsWith('}}')) {
+              // Extract the expression content
+              const content = value.slice(2, -2).trim();
+              // Convert to n8n format
+              const converted = content.replace(/1\.(\w+)/g, '$json.$1');
+              value = `={{ ${converted} }}`;
+            } else if (value.includes('{{') && value.includes('}}')) {
+              // Handle embedded expressions
+              value = value.replace(/{{(.+?)}}/g, (match: string, content: string) => {
+                const contentTrimmed = content.trim();
+                // Replace $json references with numeric references (1.xxx)
+                const convertedJson = contentTrimmed.replace(/\$json\.(\w+)/g, '1.$1');
+                // Replace $workflow references with numeric references (1.xxx)
+                const converted = convertedJson.replace(/\$workflow\.(\w+)/g, '1.$1');
+                return `{{${converted}}}`;
+              });
+            }
+          }
+          
+          // Store the converted value in n8n format
+          n8nNode.parameters.values[key] = { value };
+        }
+      }
+    } 
+    // Handle case where variables might be direct parameters
+    else if (makeModule.parameters) {
+      // Convert any direct parameters
+      for (const [key, value] of Object.entries(makeModule.parameters)) {
+        // Skip internal properties or metadata
+        if (key === 'variables' || key === 'Content-Type') continue;
+        
+        let convertedValue = value;
+        
+        // Transform the value if needed
+        if (options.transformParameterValues && typeof value === 'string') {
+          if (value.startsWith('={{') && value.endsWith('}}')) {
+            // Extract the expression content
+            const content = value.slice(2, -2).trim();
+            // Convert to n8n format
+            const converted = content.replace(/1\.(\w+)/g, '$json.$1');
+            convertedValue = `={{ ${converted} }}`;
+          }
+        }
+        
+        // Store the converted value in n8n format
+        n8nNode.parameters.values[key] = { value: convertedValue };
+      }
+    }
   }
   
   /**
