@@ -61,45 +61,45 @@
 ### 1. Update Remaining Test Files
 - **Objective**: Ensure all remaining test files align with the updated `ConversionLog` and `WorkflowConversionResult` interfaces, and properly handle optional properties and type assertions.
 
-### Files to Update:
-- ✅ `__tests__/unit/converters/n8n-to-make.test.ts`
-- ✅ `__tests__/unit/converters/make-to-n8n.test.ts` 
-- [ ] `__tests__/lib/converter.test.ts`
-- [ ] `__tests__/examples/convert-n8n-to-make.test.ts`
-- [ ] `__tests__/integration/workflow-converter-e2e.test.ts`
-- [ ] `__tests__/integration/workflow-conversion.test.ts`
-- [ ] `__tests__/lib/converters/make-to-n8n.test.ts`
+- **Files to Update**:
+  - ✅ `__tests__/unit/converters/n8n-to-make.test.ts`
+  - ✅ `__tests__/unit/converters/make-to-n8n.test.ts` 
+  - [ ] `__tests__/lib/converter.test.ts`
+  - [ ] `__tests__/examples/convert-n8n-to-make.test.ts`
+  - [ ] `__tests__/integration/workflow-converter-e2e.test.ts`
+  - [ ] `__tests__/integration/workflow-conversion.test.ts`
+  - [ ] `__tests__/lib/converters/make-to-n8n.test.ts`
 
-### Step-by-Step Action Plan:
+- **Step-by-Step Action Plan**:
 
-#### Step 1: Review Current Test Structures
-- Examine each test file to identify outdated interface usages (`string[]` logs, incorrect property names, etc.).
-- Document specific test cases that require updates.
+  #### Step 1: Review Current Test Structures
+  - Examine each test file to identify outdated interface usages (`string[]` logs, incorrect property names, etc.).
+  - Document specific test cases that require updates.
 
-#### Step 2: Update Test Expectations
-- Replace all instances of `string[]` logs with the new `ConversionLog[]` structure.
-- Ensure all assertions use `toEqual` for object comparisons instead of `toBe`.
+  #### Step 2: Update Test Expectations
+  - Replace all instances of `string[]` logs with the new `ConversionLog[]` structure.
+  - Ensure all assertions use `toEqual` for object comparisons instead of `toBe`.
 
-#### Step 3: Handle Optional Properties and Type Assertions
-- Add explicit checks for optional properties (`parametersNeedingReview`, `debug`, etc.).
-- Implement proper type assertions and guards to safely handle potentially undefined values.
+  #### Step 3: Handle Optional Properties and Type Assertions
+  - Add explicit checks for optional properties (`parametersNeedingReview`, `debug`, etc.).
+  - Implement proper type assertions and guards to safely handle potentially undefined values.
 
-#### Step 4: Validate Test Coverage
-- Run each updated test file individually to confirm passing status.
-- Ensure comprehensive coverage of edge cases and error scenarios.
+  #### Step 4: Validate Test Coverage
+  - Run each updated test file individually to confirm passing status.
+  - Ensure comprehensive coverage of edge cases and error scenarios.
 
-#### Step 5: Integration and End-to-End Testing
-- Specifically focus on integration tests (`workflow-converter-e2e.test.ts`, `workflow-conversion.test.ts`) to validate end-to-end workflow conversions.
-- Confirm that integration tests accurately reflect real-world usage scenarios.
+  #### Step 5: Integration and End-to-End Testing
+  - Specifically focus on integration tests (`workflow-converter-e2e.test.ts`, `workflow-conversion.test.ts`) to validate end-to-end workflow conversions.
+  - Confirm that integration tests accurately reflect real-world usage scenarios.
 
-#### Step 6: Documentation and Review
-- Clearly document changes made to each test file.
-- Conduct peer reviews to ensure consistency and correctness.
+  #### Step 6: Documentation and Review
+  - Clearly document changes made to each test file.
+  - Conduct peer reviews to ensure consistency and correctness.
 
-### Completion Criteria:
-- All listed test files pass successfully with the updated interfaces.
-- No remaining type errors or warnings related to test files.
-- Documentation clearly reflects all changes made.
+- **Completion Criteria**:
+  - All listed test files pass successfully with the updated interfaces.
+  - No remaining type errors or warnings related to test files.
+  - Documentation clearly reflects all changes made.
 
 ### 2. Fix Type Issues in Converter Implementations
 - **Objective**: Resolve all TypeScript errors identified in the recent test run.
