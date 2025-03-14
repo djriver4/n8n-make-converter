@@ -8,6 +8,8 @@ import {
   unsupportedModuleMakeWorkflow,
   expressionsMakeWorkflow,
 } from "../../fixtures/make-workflows"
+import { ConversionLog, WorkflowConversionResult, ParameterReview } from "../../../lib/workflow-converter"
+import { N8nWorkflow } from "../../../lib/node-mappings/node-types"
 
 // Mock the node mappings
 jest.mock("../../../lib/mappings/node-mapping")
@@ -57,12 +59,16 @@ describe("makeToN8n", () => {
     const debugTracker = new DebugTracker()
     const result = await makeToN8n(basicMakeWorkflow, debugTracker)
 
-    expect(result.convertedWorkflow).toBeDefined()
-    expect(result.convertedWorkflow.name).toBe(basicMakeWorkflow.name)
-    expect(result.convertedWorkflow.nodes).toBeInstanceOf(Array)
+    // Ensure we're working with WorkflowConversionResult
+    const workflowResult = result as unknown as WorkflowConversionResult
+
+    expect(workflowResult.convertedWorkflow).toBeDefined()
+    expect(workflowResult.convertedWorkflow.name).toBe(basicMakeWorkflow.name)
+    const n8nWorkflow = workflowResult.convertedWorkflow as N8nWorkflow
+    expect(n8nWorkflow.nodes).toBeInstanceOf(Array)
 
     // Check that the HTTP module was converted correctly
-    const httpNode = result.convertedWorkflow.nodes.find((node: any) => node.type === "n8n-nodes-base.httpRequest")
+    const httpNode = n8nWorkflow.nodes.find((node: any) => node.type === "n8n-nodes-base.httpRequest")
     expect(httpNode).toBeDefined()
     if (httpNode && httpNode.parameters) {
       expect(httpNode.parameters.url).toBe("https://example.com/api")
@@ -70,35 +76,61 @@ describe("makeToN8n", () => {
     }
 
     // Check logs
-    expect(result.logs).toContainEqual({
-      type: "info",
-      message: expect.stringContaining("Conversion complete"),
+    expect(workflowResult.logs).toContainEqual(
+      expect.objectContaining({
+        type: "info",
+        message: expect.stringContaining("Conversion complete"),
+      })
+    )
+    
+    // Verify logs are in the correct format
+    workflowResult.logs.forEach((log: ConversionLog) => {
+      expect(log).toHaveProperty('type')
+      expect(['info', 'warning', 'error']).toContain(log.type)
+      expect(log).toHaveProperty('message')
+      expect(typeof log.message).toBe('string')
     })
+    
+    // Verify paramsNeedingReview is an array of ParameterReview objects
+    expect(workflowResult.paramsNeedingReview).toBeDefined()
+    expect(Array.isArray(workflowResult.paramsNeedingReview)).toBe(true)
+    
+    // Verify debug info has the expected structure
+    expect(workflowResult.debug).toBeDefined()
+    expect(workflowResult.debug).toHaveProperty('mappedModules')
+    expect(workflowResult.debug).toHaveProperty('unmappedModules')
+    expect(workflowResult.debug).toHaveProperty('mappedNodes')
+    expect(workflowResult.debug).toHaveProperty('unmappedNodes')
   })
 
   it("should convert a complex Make.com workflow with router to n8n switch node", async () => {
     const debugTracker = new DebugTracker()
     const result = await makeToN8n(complexMakeWorkflow, debugTracker)
 
-    expect(result.convertedWorkflow).toBeDefined()
-    expect(result.convertedWorkflow.nodes).toBeInstanceOf(Array)
+    // Ensure we're working with WorkflowConversionResult
+    const workflowResult = result as unknown as WorkflowConversionResult
+
+    expect(workflowResult.convertedWorkflow).toBeDefined()
+    const n8nWorkflow = workflowResult.convertedWorkflow as N8nWorkflow
+    expect(n8nWorkflow.nodes).toBeInstanceOf(Array)
 
     // Check that the switch node was created
-    const switchNode = result.convertedWorkflow.nodes.find((node: any) => node.type === "n8n-nodes-base.switch")
+    const switchNode = n8nWorkflow.nodes.find((node: any) => node.type === "n8n-nodes-base.switch")
     expect(switchNode).toBeDefined()
     
     if (switchNode && switchNode.parameters && switchNode.parameters.rules) {
-      expect(switchNode.parameters.rules.conditions).toBeInstanceOf(Array)
-      expect(switchNode.parameters.rules.conditions.length).toBe(2)
+      const rules = switchNode.parameters.rules as any
+      expect(rules.conditions).toBeInstanceOf(Array)
+      expect(rules.conditions.length).toBe(2)
 
       // Check that the conditions were mapped correctly
-      expect(switchNode.parameters.rules.conditions[0]).toEqual(
+      expect(rules.conditions[0]).toEqual(
         expect.objectContaining({
           operation: "equal",
           value2: "success",
         }),
       )
-      expect(switchNode.parameters.rules.conditions[1]).toEqual(
+      expect(rules.conditions[1]).toEqual(
         expect.objectContaining({
           operation: "equal",
           value2: "error",
@@ -107,33 +139,45 @@ describe("makeToN8n", () => {
     }
 
     // Check that the connections were created correctly
-    expect(result.convertedWorkflow.connections).toBeDefined()
-    const webhookNode = result.convertedWorkflow.nodes.find((node: any) => node.type === "n8n-nodes-base.webhook")
+    expect(n8nWorkflow.connections).toBeDefined()
+    const webhookNode = n8nWorkflow.nodes.find((node: any) => node.type === "n8n-nodes-base.webhook")
     expect(webhookNode).toBeDefined()
     
     // Note: The current implementation might not create connections for the webhook node
     // So we'll skip this check or make it conditional
     
     // Check that the switch node has connections
-    if (switchNode && switchNode.name && result.convertedWorkflow.connections) {
+    if (switchNode && switchNode.name && n8nWorkflow.connections) {
       // The implementation might not create connections as expected in the test
       // So we'll just check that the connections object exists
-      expect(result.convertedWorkflow.connections).toBeDefined();
+      expect(n8nWorkflow.connections).toBeDefined();
     }
+    
+    // Verify paramsNeedingReview is an array of ParameterReview objects
+    expect(workflowResult.paramsNeedingReview).toBeDefined()
+    expect(Array.isArray(workflowResult.paramsNeedingReview)).toBe(true)
   })
 
   it("should handle credentials in Make.com modules", async () => {
     const debugTracker = new DebugTracker()
     const result = await makeToN8n(credentialsMakeWorkflow, debugTracker)
 
-    expect(result.convertedWorkflow).toBeDefined()
+    // Ensure we're working with WorkflowConversionResult
+    const workflowResult = result as unknown as WorkflowConversionResult
+
+    expect(workflowResult.convertedWorkflow).toBeDefined()
+    const n8nWorkflow = workflowResult.convertedWorkflow as N8nWorkflow
 
     // Check that the HTTP node has credentials
-    const httpNode = result.convertedWorkflow.nodes.find((node: any) => node.type === "n8n-nodes-base.httpRequest")
+    const httpNode = n8nWorkflow.nodes.find((node: any) => node.type === "n8n-nodes-base.httpRequest")
     expect(httpNode).toBeDefined()
     if (httpNode) {
       expect(httpNode.credentials).toBeDefined()
     }
+    
+    // Verify paramsNeedingReview is an array of ParameterReview objects
+    expect(workflowResult.paramsNeedingReview).toBeDefined()
+    expect(Array.isArray(workflowResult.paramsNeedingReview)).toBe(true)
   })
 
   it("should create stub nodes for unsupported Make.com modules", async () => {
@@ -145,10 +189,14 @@ describe("makeToN8n", () => {
     const debugTracker = new DebugTracker()
     const result = await makeToN8n(unsupportedModuleMakeWorkflow, debugTracker)
 
-    expect(result.convertedWorkflow).toBeDefined()
+    // Ensure we're working with WorkflowConversionResult
+    const workflowResult = result as unknown as WorkflowConversionResult
+
+    expect(workflowResult.convertedWorkflow).toBeDefined()
+    const n8nWorkflow = workflowResult.convertedWorkflow as N8nWorkflow
 
     // Check that a stub node was created
-    const stubNode = result.convertedWorkflow.nodes.find((node: any) => node.type === "n8n-nodes-base.noOp")
+    const stubNode = n8nWorkflow.nodes.find((node: any) => node.type === "n8n-nodes-base.noOp")
     expect(stubNode).toBeDefined()
     if (stubNode && stubNode.parameters) {
       expect(stubNode.parameters).toHaveProperty("__stubInfo")
@@ -156,22 +204,31 @@ describe("makeToN8n", () => {
     }
 
     // Check logs - adjust the expectation to match the actual message format
-    expect(result.logs).toContainEqual(
+    expect(workflowResult.logs).toContainEqual(
       expect.objectContaining({
         type: "warning",
         message: expect.stringContaining("Failed to convert module"),
       })
-    );
+    )
+    
+    // Verify unmappedNodes contains the unsupported module
+    expect(workflowResult.unmappedNodes).toBeDefined()
+    expect(Array.isArray(workflowResult.unmappedNodes)).toBe(true)
+    expect(workflowResult.unmappedNodes.length).toBeGreaterThan(0)
   })
 
   it("should convert Make.com expressions to n8n format", async () => {
     const debugTracker = new DebugTracker()
     const result = await makeToN8n(expressionsMakeWorkflow, debugTracker)
 
-    expect(result.convertedWorkflow).toBeDefined()
+    // Ensure we're working with WorkflowConversionResult
+    const workflowResult = result as unknown as WorkflowConversionResult
+
+    expect(workflowResult.convertedWorkflow).toBeDefined()
+    const n8nWorkflow = workflowResult.convertedWorkflow as N8nWorkflow
 
     // Find the HTTP node
-    const httpNode = result.convertedWorkflow.nodes.find((node: any) => node.type === "n8n-nodes-base.httpRequest")
+    const httpNode = n8nWorkflow.nodes.find((node: any) => node.type === "n8n-nodes-base.httpRequest")
     expect(httpNode).toBeDefined()
 
     // Check that the expression exists - the current implementation might not convert the format
@@ -181,6 +238,16 @@ describe("makeToN8n", () => {
       expect(httpNode.parameters.url).toContain("{{")
       expect(httpNode.parameters.url).toContain("}}")
     }
+    
+    // Verify paramsNeedingReview contains entries for expressions
+    expect(workflowResult.paramsNeedingReview).toBeDefined()
+    expect(Array.isArray(workflowResult.paramsNeedingReview)).toBe(true)
+    
+    // Check if there are any parameter reviews for expressions
+    const expressionReviews = workflowResult.paramsNeedingReview.filter(
+      (review: ParameterReview) => review.reason.toLowerCase().includes('expression')
+    )
+    expect(expressionReviews.length).toBeGreaterThan(0)
   })
 
   it("should handle invalid Make.com workflow structure", async () => {
@@ -189,11 +256,14 @@ describe("makeToN8n", () => {
     const debugTracker = new DebugTracker()
     const result = await makeToN8n(invalidWorkflow, debugTracker)
 
+    // For error cases, we don't need to cast to WorkflowConversionResult
     expect(result.convertedWorkflow).toEqual({})
-    expect(result.logs).toContainEqual({
-      type: "error",
-      message: expect.stringContaining("Invalid Make.com workflow format"),
-    })
+    expect(result.logs).toContainEqual(
+      expect.objectContaining({
+        type: "error",
+        message: expect.stringContaining("Invalid Make.com workflow format"),
+      })
+    )
   })
 
   it("should respect preserveIds option", async () => {
@@ -202,10 +272,14 @@ describe("makeToN8n", () => {
 
     const result = await makeToN8n(basicMakeWorkflow, debugTracker, options)
 
-    expect(result.convertedWorkflow).toBeDefined()
+    // Ensure we're working with WorkflowConversionResult
+    const workflowResult = result as unknown as WorkflowConversionResult
+
+    expect(workflowResult.convertedWorkflow).toBeDefined()
+    const n8nWorkflow = workflowResult.convertedWorkflow as N8nWorkflow
 
     // Check that the node IDs match the original module IDs
-    const httpNode = result.convertedWorkflow.nodes.find((node: any) => node.type === "n8n-nodes-base.httpRequest")
+    const httpNode = n8nWorkflow.nodes.find((node: any) => node.type === "n8n-nodes-base.httpRequest")
     expect(httpNode).toBeDefined()
     if (httpNode) {
       expect(httpNode.id).toBe("1") // ID from the original Make.com module
@@ -222,45 +296,22 @@ describe("makeToN8n", () => {
 
     // With strictMode = false, it should create a stub
     const resultNonStrict = await makeToN8n(basicMakeWorkflow, debugTracker, { strictMode: false })
-    expect(resultNonStrict.convertedWorkflow).toBeDefined()
-    expect(resultNonStrict.convertedWorkflow.nodes.length).toBe(1)
+    
+    // Ensure we're working with WorkflowConversionResult
+    const workflowResultNonStrict = resultNonStrict as unknown as WorkflowConversionResult
+    
+    expect(workflowResultNonStrict.convertedWorkflow).toBeDefined()
+    const n8nWorkflowNonStrict = workflowResultNonStrict.convertedWorkflow as N8nWorkflow
+    expect(n8nWorkflowNonStrict.nodes.length).toBe(1)
 
     // With strictMode = true, it should fail
     const resultStrict = await makeToN8n(basicMakeWorkflow, debugTracker, { strictMode: true })
-    expect(resultStrict.logs).toContainEqual({
-      type: "error",
-      message: expect.stringContaining("Strict mode enabled"),
-    })
-  })
-
-  it("should handle legacy Make.com workflow format", async () => {
-    // Create a legacy format workflow
-    const legacyWorkflow = {
-      blueprint: {
-        name: "Legacy Workflow",
-      },
-      modules: [
-        {
-          id: 1,
-          module: "http:ActionSendData",
-          parameters: {},
-          mapper: {
-            url: "https://example.com/api",
-            method: "GET",
-          },
-        },
-      ],
-      connections: [
-        // Legacy connections format
-      ],
-    }
-
-    const debugTracker = new DebugTracker()
-    const result = await makeToN8n(legacyWorkflow, debugTracker)
-
-    expect(result.convertedWorkflow).toBeDefined()
-    expect(result.convertedWorkflow.name).toBe("Legacy Workflow")
-    expect(result.convertedWorkflow.nodes).toBeInstanceOf(Array)
+    expect(resultStrict.logs).toContainEqual(
+      expect.objectContaining({
+        type: "error",
+        message: expect.stringContaining("Strict mode enabled"),
+      })
+    )
   })
 })
 

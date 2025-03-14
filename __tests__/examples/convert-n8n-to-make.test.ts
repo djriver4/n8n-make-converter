@@ -1,6 +1,8 @@
 import { n8nToMake } from "../../lib/converters/n8n-to-make"
 import { DebugTracker } from "../../lib/debug-tracker"
 import { describe, it, expect } from "@jest/globals"
+import { ConversionLog, ParameterReview, ConversionResult } from "../../lib/workflow-converter"
+import { MakeWorkflow } from "../../lib/node-mappings/node-types"
 
 describe("convertN8nToMake Example", () => {
   it("should convert an HTTP Request node correctly", async () => {
@@ -44,22 +46,24 @@ describe("convertN8nToMake Example", () => {
 
     // Verify the conversion was successful
     expect(result.convertedWorkflow).toBeDefined()
-    expect(result.convertedWorkflow.flow).toBeInstanceOf(Array)
-    expect(result.convertedWorkflow.flow.length).toBe(1)
+    const makeWorkflow = result.convertedWorkflow as MakeWorkflow
+    expect(makeWorkflow.flow).toBeInstanceOf(Array)
+    expect(makeWorkflow.flow?.length).toBe(1)
 
     // Get the converted HTTP module
-    const httpModule = result.convertedWorkflow.flow[0]
+    const httpModule = makeWorkflow.flow?.[0]
+    expect(httpModule).toBeDefined()
 
     // Verify the module type
-    expect(httpModule.module).toBe("http:ActionSendData")
+    expect(httpModule?.module).toBe("http:ActionSendData")
 
     // Verify the parameters were mapped correctly
-    expect(httpModule.mapper.url).toBe("https://api.example.com/data")
-    expect(httpModule.mapper.method).toBe("POST")
-    expect(httpModule.mapper.headers).toEqual({
+    expect(httpModule?.mapper?.url).toBe("https://api.example.com/data")
+    expect(httpModule?.mapper?.method).toBe("POST")
+    expect(httpModule?.mapper?.headers).toEqual({
       "Content-Type": "application/json",
     })
-    expect(httpModule.mapper.data).toEqual({
+    expect(httpModule?.mapper?.data).toEqual({
       data: "example",
       moreData: 123,
     })
@@ -87,6 +91,24 @@ describe("convertN8nToMake Example", () => {
         success: true,
       }),
     )
+    
+    // Verify logs are in the correct format
+    expect(result.logs).toBeInstanceOf(Array)
+    result.logs.forEach((log: ConversionLog) => {
+      expect(log).toHaveProperty('type')
+      expect(['info', 'warning', 'error']).toContain(log.type)
+      expect(log).toHaveProperty('message')
+      expect(typeof log.message).toBe('string')
+    })
+    
+    // Verify parameters needing review
+    expect(result.parametersNeedingReview).toBeDefined()
+    if (result.parametersNeedingReview && result.parametersNeedingReview.length > 0) {
+      // For string[] type parametersNeedingReview
+      result.parametersNeedingReview.forEach((param: string) => {
+        expect(typeof param).toBe('string')
+      })
+    }
   })
 
   it("should handle complex expressions in n8n nodes", async () => {
@@ -119,20 +141,35 @@ describe("convertN8nToMake Example", () => {
 
     // Verify the conversion was successful
     expect(result.convertedWorkflow).toBeDefined()
+    const makeWorkflow = result.convertedWorkflow as MakeWorkflow
 
     // Get the converted HTTP module
-    const httpModule = result.convertedWorkflow.flow[0]
+    const httpModule = makeWorkflow.flow?.[0]
+    expect(httpModule).toBeDefined()
 
     // Verify expressions were converted correctly
     // n8n: "={{ 'https://api.example.com/users/' + $json.userId }}"
     // Make.com: "https://api.example.com/users/{{$json.userId}}"
-    expect(httpModule.mapper.url).not.toContain("={{")
-    expect(httpModule.mapper.url).toContain("{{")
-    expect(httpModule.mapper.url).toContain("}}")
+    expect(httpModule?.mapper?.url).not.toContain("={{")
+    expect(httpModule?.mapper?.url).toContain("{{")
+    expect(httpModule?.mapper?.url).toContain("}}")
 
     // Check the Authorization header
-    expect(httpModule.mapper.headers.Authorization).toContain("Bearer")
-    expect(httpModule.mapper.headers.Authorization).toContain("{{")
+    expect(httpModule?.mapper?.headers?.Authorization).toContain("Bearer")
+    expect(httpModule?.mapper?.headers?.Authorization).toContain("{{")
+    
+    // Verify logs are in the correct format
+    expect(result.logs).toBeInstanceOf(Array)
+    result.logs.forEach((log: ConversionLog) => {
+      expect(log).toHaveProperty('type')
+      expect(['info', 'warning', 'error']).toContain(log.type)
+      expect(log).toHaveProperty('message')
+    })
+    
+    // Verify debug information is present if available
+    if ('debug' in result) {
+      expect(result.debug).toBeDefined()
+    }
   })
 
   it("should create stub modules for unsupported node types", async () => {
@@ -161,21 +198,32 @@ describe("convertN8nToMake Example", () => {
 
     // Verify the conversion created a stub
     expect(result.convertedWorkflow).toBeDefined()
-    expect(result.convertedWorkflow.flow).toBeInstanceOf(Array)
-    expect(result.convertedWorkflow.flow.length).toBe(1)
+    const makeWorkflow = result.convertedWorkflow as MakeWorkflow
+    expect(makeWorkflow.flow).toBeInstanceOf(Array)
+    expect(makeWorkflow.flow?.length).toBe(1)
 
     // Get the stub module
-    const stubModule = result.convertedWorkflow.flow[0]
+    const stubModule = makeWorkflow.flow?.[0]
+    expect(stubModule).toBeDefined()
 
     // Verify it's a stub
-    expect(stubModule.module).toBe("helper:Note")
-    expect(stubModule.mapper).toHaveProperty("originalNodeType", "custom-nodes-base.customAction")
+    expect(stubModule?.module).toBe("helper:Note")
+    expect(stubModule?.mapper).toHaveProperty("originalNodeType", "custom-nodes-base.customAction")
 
     // Check the logs
-    expect(result.logs).toContainEqual({
-      type: "warning",
-      message: expect.stringContaining("Could not find direct mapping"),
-    })
+    expect(result.logs).toContainEqual(
+      expect.objectContaining({
+        type: "warning",
+        message: expect.stringContaining("Could not find direct mapping"),
+      })
+    )
+    
+    // Check for unmapped nodes if available
+    const resultWithUnmappedNodes = result as ConversionResult & { unmappedNodes?: string[] }
+    if (resultWithUnmappedNodes.unmappedNodes) {
+      expect(Array.isArray(resultWithUnmappedNodes.unmappedNodes)).toBe(true)
+      expect(resultWithUnmappedNodes.unmappedNodes).toContain("1")
+    }
   })
 })
 
