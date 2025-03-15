@@ -65,6 +65,8 @@ Handles the parsing, evaluation, and conversion of expressions:
 - Handles complex expressions with functions and operators
 - Manages string interpolation with embedded expressions
 - Provides evaluation capabilities for testing expressions
+- Supports string concatenation operations (e.g., `"prefix" + $json.value`)
+- Processes nested function calls and mixed data types
 
 ### Parameter Processor (`converters/parameter-processor.ts`)
 
@@ -134,6 +136,57 @@ The converter is designed to handle large workflows efficiently:
 - Efficient handling of expressions through caching
 - Performance logging for identifying bottlenecks
 - Lazy loading of plugins and mappings
+
+## Recent Architectural Improvements
+
+The n8n-Make Converter has undergone several architectural improvements to enhance stability, maintainability, and functionality:
+
+### 1. Enhanced Expression Evaluation
+
+The Expression Evaluator has been strengthened with:
+
+- Improved string concatenation handling for URL construction and dynamic content
+- More robust variable replacement in expressions
+- Better handling of edge cases and malformed expressions
+- Enhanced type coercion for mixed-type operations
+- Fallback mechanisms for complex expressions
+
+### 2. Null Safety Enhancements
+
+Implemented throughout the codebase:
+
+- Optional chaining for accessing potentially undefined properties
+- Null coalescence for providing default values
+- Defensive programming with explicit null checks
+- Type guards to ensure type safety
+
+### 3. Advanced Error Handling
+
+Error handling has been improved with:
+
+- More detailed error messages providing context about the failure
+- Hierarchical error classification for better debugging
+- Safe error recovery to prevent cascading failures
+- Comprehensive logging of errors with relevant context
+
+### 4. Test Coverage Expansion
+
+The test infrastructure has been enhanced with:
+
+- End-to-end tests for complete workflow conversions
+- Unit tests for individual components
+- Integration tests for component interactions
+- Stress tests for performance evaluation
+- Mock databases for consistent testing
+
+### 5. Code Modularity Improvements
+
+Several refactorings have improved the modularity:
+
+- Better separation of concerns between components
+- Reduced coupling between modules
+- More consistent interfaces between components
+- Enhanced documentation of component responsibilities
 
 ## Future Architecture
 

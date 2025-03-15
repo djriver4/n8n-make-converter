@@ -60,7 +60,8 @@ describe('Expression Evaluator', () => {
         value: 'processed',
         data: {
           items: [1, 2, 3]
-        }
+        },
+        id: '12345'
       },
       $env: {
         API_URL: 'https://api.example.com'
@@ -95,6 +96,25 @@ describe('Expression Evaluator', () => {
     it('should return null for empty expressions', () => {
       expect(evaluateExpression('', context)).toBeNull();
       expect(evaluateExpression('={{}}', context)).toBeNull();
+    });
+    
+    // New test cases for string concatenation
+    it('should correctly concatenate strings with variable references', () => {
+      // Test the exact case that was failing in manual-test.test.js
+      expect(evaluateExpression('={{ "https://example.com/api/" + $json.id }}', context)).toBe('https://example.com/api/12345');
+      
+      // Test with different string formats
+      expect(evaluateExpression("={{ 'Hello, ' + $json.firstName }}", context)).toBe('Hello, John');
+      
+      // Test with multiple concatenations
+      expect(evaluateExpression('={{ "User: " + $json.firstName + " " + $json.lastName }}', context)).toBe('User: John Doe');
+      
+      // Test with numbers
+      expect(evaluateExpression('={{ "Age: " + $json.age }}', context)).toBe('Age: 30');
+      
+      // Test with expressions that include both string literals and variables
+      expect(evaluateExpression('={{ "API URL: " + $env.API_URL + "/users/" + $json.id }}', context))
+        .toBe('API URL: https://api.example.com/users/12345');
     });
   });
 

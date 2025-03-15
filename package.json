@@ -12,7 +12,8 @@
     "test:coverage": "jest --coverage",
     "test:regression": "ts-node __tests__/regression/test-runner.ts",
     "extract-mappings": "ts-node scripts/extract-n8n-mappings.ts",
-    "fix-mock-data": "ts-node scripts/fix-mock-data.ts"
+    "fix-mock-data": "ts-node scripts/fix-mock-data.ts",
+    "validate": "ts-node __tests__/utils/validate-codebase.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.9.1",
@@ -76,7 +77,7 @@
     "tailwindcss-animate": "^1.0.7",
     "ts-jest": "^29.2.6",
     "use-sync-external-store": "latest",
-    "uuid": "latest",
+    "uuid": "^11.1.0",
     "vaul": "^0.9.6",
     "zod": "^3.24.1",
     "zustand": "latest"
@@ -86,6 +87,7 @@
     "@types/node": "^22",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "@types/uuid": "^10.0.0",
     "fast-equals": "^5.2.2",
     "jest": "^29.7.0",
     "jest-environment-jsdom": "^29.7.0",

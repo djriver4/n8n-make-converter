@@ -18,6 +18,14 @@ import { NodeParameterProcessor } from '../converters/parameter-processor';
 import { evaluateExpression, isExpression, extractExpressionContent } from '../expression-evaluator';
 
 /**
+ * Direction of node mapping conversion
+ */
+export enum MappingDirection {
+  N8N_TO_MAKE = 'n8n_to_make',
+  MAKE_TO_N8N = 'make_to_n8n'
+}
+
+/**
  * Error thrown when node mapping fails
  */
 export class NodeMappingError extends Error {
@@ -87,10 +95,14 @@ export class NodeMapper {
   /**
    * Create a new NodeMapper
    * 
-   * @param mappingDatabase - Database of node mappings
+   * @param mappingDatabase - Database of node mappings (optional)
    */
-  constructor(mappingDatabase: NodeMappingDatabase) {
-    this.mappingDatabase = mappingDatabase;
+  constructor(mappingDatabase?: NodeMappingDatabase) {
+    this.mappingDatabase = mappingDatabase || {
+      version: '1.0.0',
+      lastUpdated: new Date().toISOString(),
+      mappings: {}
+    };
     logger.info('NodeMapper initialized');
   }
   
@@ -118,6 +130,35 @@ export class NodeMapper {
     return Object.values(this.mappingDatabase.mappings).find(
       (mapping) => mapping.sourceNodeType === makeModuleId && mapping.source === 'make'
     );
+  }
+  
+  /**
+   * Get a mapped node type for the given source type and direction
+   * 
+   * @param sourceType - The source node type
+   * @param direction - Direction of mapping (n8n to make or vice versa)
+   * @returns Object with mapped type information and validity
+   */
+  getMappedNode(
+    sourceType: string,
+    direction: MappingDirection
+  ): { isValid: boolean; mappedType?: string } {
+    let mapping: NodeMapping | undefined;
+    
+    if (direction === MappingDirection.N8N_TO_MAKE) {
+      mapping = this.getNodeMappingByN8nType(sourceType);
+    } else if (direction === MappingDirection.MAKE_TO_N8N) {
+      mapping = this.getNodeMappingByMakeId(sourceType);
+    }
+    
+    if (!mapping) {
+      return { isValid: false };
+    }
+    
+    return {
+      isValid: true,
+      mappedType: mapping.targetNodeType
+    };
   }
   
   /**

@@ -135,6 +135,97 @@ const result = NodeParameterProcessor.evaluateExpressions({ greeting: expression
 console.log(result.greeting); // John Doe
 ```
 
+## String Concatenation
+
+The Expression Evaluator has advanced capabilities for handling string concatenation, which is important for constructing URLs, messages, and other dynamic content.
+
+### Basic String Concatenation
+
+String concatenation combines string literals with variables:
+
+```typescript
+import { evaluateExpression } from './lib/expression-evaluator';
+
+// Set up context for expression evaluation
+const context = {
+  $json: {
+    id: '12345'
+  }
+};
+
+// Evaluate a string concatenation expression
+const expression = '={{ "https://example.com/api/" + $json.id }}';
+const result = evaluateExpression(expression, context);
+console.log(result); // "https://example.com/api/12345"
+```
+
+### Multiple Concatenations
+
+The evaluator can handle multiple concatenations in a single expression:
+
+```typescript
+// Multiple concatenations
+const expression = '={{ "User: " + $json.firstName + " " + $json.lastName }}';
+const context = {
+  $json: {
+    firstName: 'John',
+    lastName: 'Doe'
+  }
+};
+
+const result = evaluateExpression(expression, context);
+console.log(result); // "User: John Doe"
+```
+
+### Mixed Data Types
+
+The evaluator properly handles concatenation of different data types:
+
+```typescript
+// Concatenating strings with numbers
+const expression = '={{ "Age: " + $json.age }}';
+const context = {
+  $json: {
+    age: 30
+  }
+};
+
+const result = evaluateExpression(expression, context);
+console.log(result); // "Age: 30"
+```
+
+### Embedded Expressions
+
+String concatenation can be used with embedded expressions:
+
+```typescript
+// String interpolation with concatenation
+const expression = '={{ "API URL: " + $env.API_URL + "/users/" + $json.id }}';
+const context = {
+  $env: {
+    API_URL: 'https://api.example.com'
+  },
+  $json: {
+    id: '12345'
+  }
+};
+
+const result = evaluateExpression(expression, context);
+console.log(result); // "API URL: https://api.example.com/users/12345"
+```
+
+### Implementation Details
+
+The string concatenation evaluator:
+
+1. Identifies expressions that include the `+` operator and string literals
+2. Replaces variable references with their actual values from the context
+3. Uses a safe evaluation approach to process the concatenation expression
+4. Handles proper whitespace preservation
+5. Provides fallback mechanisms for complex scenarios
+
+This approach ensures reliable and consistent string concatenation behavior, particularly when converting workflows between platforms.
+
 ## Advanced Functions
 
 The Expression Evaluator supports a rich set of functions for complex transformations:

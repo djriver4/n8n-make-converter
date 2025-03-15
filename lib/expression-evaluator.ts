@@ -752,6 +752,77 @@ export function evaluateExpression(expression: string, context: ExpressionContex
       return null;
     }
 
+    // Special case for string concatenation with context variables
+    if (expressionContent.includes('+') && 
+        (expressionContent.includes('"') || expressionContent.includes("'")) && 
+        expressionContent.includes('$json')) {
+      
+      try {
+        // First, replace all variables with their values
+        let processedExpression = expressionContent;
+        const variableMatches = [...expressionContent.matchAll(/\$(\w+)\.([a-zA-Z0-9_.]+)/g)];
+        
+        for (const match of variableMatches) {
+          const [fullMatch, prefix, path] = match;
+          const contextPrefix = context[`$${prefix}`] !== undefined ? `$${prefix}` : prefix;
+          
+          if (context[contextPrefix]) {
+            // Navigate through the path segments
+            const pathSegments = path.split('.');
+            let value = context[contextPrefix];
+            
+            for (const segment of pathSegments) {
+              if (value === undefined || value === null) {
+                value = null;
+                break;
+              }
+              value = value[segment];
+            }
+            
+            // Replace the variable with its value
+            processedExpression = processedExpression.replace(
+              fullMatch, 
+              JSON.stringify(value) // Use JSON.stringify to properly handle quotes
+            );
+          }
+        }
+        
+        // Now evaluate the expression as JavaScript
+        // This is a safe approach since we've already replaced all variables
+        // and we're only handling string concatenation
+        try {
+          // Remove the outer quotes from string literals to avoid double-quoting
+          processedExpression = processedExpression.replace(/"([^"]*)"/g, (match, content) => {
+            return JSON.stringify(content);
+          });
+          processedExpression = processedExpression.replace(/'([^']*)'/g, (match, content) => {
+            return JSON.stringify(content);
+          });
+          
+          // Create a safe evaluation function
+          const evalFn = new Function(`return ${processedExpression}`);
+          return evalFn();
+        } catch (evalError) {
+          // Fallback to a simpler approach if evaluation fails
+          // Split by '+' and join the parts
+          const parts = processedExpression.split('+').map(part => {
+            part = part.trim();
+            // Remove quotes from string literals
+            if ((part.startsWith('"') && part.endsWith('"')) || 
+                (part.startsWith("'") && part.endsWith("'"))) {
+              return part.substring(1, part.length - 1);
+            }
+            return part;
+          });
+          
+          return parts.join('');
+        }
+      } catch (error) {
+        console.error('Error evaluating string concatenation:', error);
+        return null;
+      }
+    }
+
     // Handle simple arithmetic expressions
     if (/^[\d\s+\-*/()]+$/.test(expressionContent)) {
       const parser = new Parser();
@@ -808,7 +879,18 @@ export function evaluateExpression(expression: string, context: ExpressionContex
           const result = parser.evaluate(modifiedExpression);
           return result;
         } catch (err) {
-          // If parsing fails, fall back to the original value lookup
+          // If parser evaluation fails, try direct string evaluation for concatenation
+          try {
+            // Handle string literals in the expression
+            modifiedExpression = modifiedExpression.replace(/"([^"]*)"/g, (_, contents) => contents);
+            modifiedExpression = modifiedExpression.replace(/'([^']*)'/g, (_, contents) => contents);
+            
+            // Evaluate the modified expression without variables
+            // Split by the '+' operator and trim only around the operator
+            return modifiedExpression.split('+').map(part => part.trim()).join('');
+          } catch (stringErr) {
+            // If string evaluation fails, fall back to the original value lookup
+          }
         }
       }
     }

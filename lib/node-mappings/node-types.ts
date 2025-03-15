@@ -57,9 +57,9 @@ export interface MakeModule {
   // Unique identifier for the module
   id: string | number;
   // Display name of the module
-  name: string;
+  name?: string;
   // Module type (e.g., 'http', 'gmail', 'slack')
-  type: string;
+  type?: string;
   // Module parameters
   parameters: Record<string, ParameterValue>;
   // Position in the workflow canvas [x, y]
@@ -90,20 +90,31 @@ export interface MakeModule {
   collectionName?: string;
   // For filters/routers
   filter?: Record<string, any>;
+  // MODULE ID STRING - Used in tests and API responses
+  module?: string;
+  // PARAMETER MAPPING - Used for parameter transformations
+  mapper?: Record<string, any>;
+  // Child routes for router/filter modules
+  routes?: MakeRoute[];
+  // Module label (display name in Make.com UI)
+  label?: string;
 }
 
 /**
  * Basic connection structure for n8n
  */
 export interface N8nConnection {
-  // Source node ID
-  sourceNodeId: string;
-  // Target node ID
-  targetNodeId: string;
+  // Source node ID (optional in implementation as source is determined by connections object)
+  sourceNodeId?: string;
+  // Target node ID (in implementation, this is often referred to as 'node')
+  targetNodeId?: string;
+  // Target node name (used in implementation)
+  node?: string;
   // Source output index (0-based)
   sourceOutputIndex?: number;
-  // Target input index (0-based)
+  // Target input index (0-based, often referred to as 'index')
   targetInputIndex?: number;
+  index?: number;
   // Connection type (main, trigger, etc.)
   type?: string;
 }
@@ -124,6 +135,8 @@ export interface MakeRoute {
   type?: string;
   // Sort order for routes
   order?: number;
+  // Flow of modules within this route
+  flow?: MakeModule[];
 }
 
 /**
@@ -138,7 +151,7 @@ export interface N8nWorkflow {
     [nodeId: string]: {
       main?: {
         [outputIndex: string]: N8nConnection[];
-      };
+      } | N8nConnection[][];
     };
   };
   // Active status
@@ -168,10 +181,14 @@ export interface MakeWorkflow {
   // Workflow properties
   id?: string | number;
   name: string;
-  modules: MakeModule[];
-  routes: MakeRoute[];
+  // Array of modules (used in original implementation)
+  modules?: MakeModule[];
+  // Array of modules (used in tests and API responses)
+  flow?: MakeModule[];
+  // Connection routes
+  routes?: MakeRoute[];
   // Active status
-  active: boolean;
+  active?: boolean;
   // Workflow settings
   settings?: Record<string, any>;
   // Workflow labels (tags)
@@ -184,6 +201,9 @@ export interface MakeWorkflow {
     instant?: boolean;
     folderName?: string;
     color?: string;
+    scenario?: Record<string, any>;
+    designer?: Record<string, any>;
+    version?: number; // Adding version to metadata as it's used in n8n-to-make.ts
   };
   // Creation timestamp
   createdAt?: string;

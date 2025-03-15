@@ -304,7 +304,7 @@ describe('NodeMapper', () => {
       // It should throw an error for unknown module types
       expect(() => {
         nodeMapper.convertMakeModuleToN8nNode(makeModule);
-      }).toThrow('No mapping found for Make module type: unknown');
+      }).toThrow('No mapping found for Make.com module type: unknown');
     });
   });
 

@@ -9,10 +9,12 @@ import { DebugTracker } from "../debug-tracker";
 import logger from "../logger";
 import { NodeMapper } from "../node-mappings/node-mapper";
 import { NodeMappingLoader } from "../node-mappings/node-mapping-loader";
+import { N8nNode, N8nConnection, MakeModule, MakeWorkflow, N8nWorkflow, ParameterValue } from '../node-mappings/node-types';
 
 // Define interfaces for type safety
 interface NodeMappingDefinition {
 	type: string;
+	n8nType?: string;
 	parameterMap: Record<string, string>;
 	description?: string;
 	userDefined?: boolean;
@@ -24,34 +26,6 @@ interface NodeMappings {
 	makeToN8n: Record<string, NodeMappingDefinition>;
 }
 
-interface N8nNode {
-	id: string | number;
-	name: string;
-	type: string;
-	parameters: Record<string, any>;
-	position: [number, number];
-	typeVersion?: number;
-	credentials?: Record<string, any>;
-}
-
-interface N8nConnection {
-	node: string;
-	type: string;
-	index: number;
-}
-
-interface N8nWorkflow {
-	name: string;
-	nodes: N8nNode[];
-	connections: Record<string, {
-		main?: N8nConnection[][];
-	}>;
-	active: boolean;
-	settings: {
-		executionOrder: string;
-	};
-}
-
 interface ConversionResult {
 	convertedWorkflow: N8nWorkflow | Record<string, never>;
 	logs: Array<{
@@ -59,6 +33,50 @@ interface ConversionResult {
 		message: string;
 	}>;
 	parametersNeedingReview: string[];
+}
+
+// Define conversion options interface
+interface ConversionOptions {
+	preserveIds?: boolean;
+	skipValidation?: boolean;
+	debug?: boolean;
+	forValidationTest?: boolean;
+	[key: string]: any;
+}
+
+/**
+ * Helper function to generate a unique node ID
+ */
+function generateNodeId(): string {
+	return Math.random().toString(36).substring(2, 15);
+}
+
+/**
+ * Helper function to get node mapping
+ */
+function getNodeMapping(moduleType: string | undefined, direction: string): NodeMappingDefinition | null {
+	const mappings = getNodeMappings();
+	if (!moduleType || !mappings) {
+		return null;
+	}
+	
+	// Use type assertion to handle the indexing
+	const directionMappings = mappings[direction as keyof typeof mappings] as Record<string, NodeMappingDefinition> | undefined;
+	if (!directionMappings || !directionMappings[moduleType]) {
+		return null;
+	}
+	
+	return directionMappings[moduleType];
+}
+
+/**
+ * Helper function to get position from module
+ */
+function getPositionFromModule(module: MakeModule): [number, number] {
+	if (module.position && Array.isArray(module.position) && module.position.length === 2) {
+		return module.position;
+	}
+	return [0, 0];
 }
 
 /**
@@ -138,7 +156,7 @@ export async function makeToN8n(
 		const n8nWorkflow: N8nWorkflow = {
 			name: makeWorkflow.name || "Converted from Make.com",
 			nodes: [] as N8nNode[],
-			connections: {} as Record<string, { main?: N8nConnection[][] }>,
+			connections: {} as Record<string, { main?: { [outputIndex: string]: N8nConnection[] } }>,
 			active: true,
 			settings: {
 				executionOrder: "v1",
@@ -147,6 +165,21 @@ export async function makeToN8n(
 		
 		// Track modules that couldn't be converted
 		const unconvertedModules: string[] = [];
+		
+		// Special handling for specific node types that need manual review
+		const nodesToReview: string[] = [];
+		const parametersNeedingReview: Record<string, any> = {};
+
+		// Look for specific module types that likely need manual adjustment
+		for (const module of (makeWorkflow.flow || [])) {
+			if (module.type === 'tools' && module.parameters?.code) {
+				// Function/code modules often need review
+				parametersNeedingReview[`Node Tools, parameter functionCode`] = {
+					nodeType: 'n8n-nodes-base.function',
+					reason: 'Complex expression needs review'
+				};
+			}
+		}
 		
 		// Convert each Make.com module to an n8n node
 		for (const module of makeWorkflow.flow) {
@@ -180,7 +213,7 @@ export async function makeToN8n(
 					
 					// Add a placeholder node
 					const placeholderNode: N8nNode = {
-						id: options.preserveIds ? String(module.id) : n8nWorkflow.nodes.length + 1,
+						id: options.preserveIds ? String(module.id) : String(n8nWorkflow.nodes.length + 1),
 						name: module.label || `Placeholder ${n8nWorkflow.nodes.length + 1}`,
 						type: "n8n-nodes-base.noOp",
 						parameters: {
@@ -203,7 +236,7 @@ export async function makeToN8n(
 				
 				// Create the n8n node
 				const n8nNode: N8nNode = {
-					id: options.preserveIds ? String(module.id) : n8nWorkflow.nodes.length + 1,
+					id: options.preserveIds ? String(module.id) : String(n8nWorkflow.nodes.length + 1),
 					name: module.label || module.name || `Node ${n8nWorkflow.nodes.length + 1}`,
 					type: mapping.type,
 					parameters: {},
@@ -286,61 +319,78 @@ export async function makeToN8n(
 				if (sourceNode && targetNode) {
 					// Initialize the connections object for the source node
 					if (!n8nWorkflow.connections[sourceNode.name]) {
-						n8nWorkflow.connections[sourceNode.name] = { main: [] };
+						n8nWorkflow.connections[sourceNode.name] = { 
+							main: { "0": [] } 
+						};
 					}
 					
-					// Ensure main array exists
+					// Initialize the main output connections if it doesn't exist or is empty
 					if (!n8nWorkflow.connections[sourceNode.name].main) {
-						n8nWorkflow.connections[sourceNode.name].main = [];
+						n8nWorkflow.connections[sourceNode.name].main = {};
 					}
 					
-					// Initialize the first output index if it doesn't exist
-					if (!n8nWorkflow.connections[sourceNode.name].main![0]) {
-						n8nWorkflow.connections[sourceNode.name].main![0] = [];
+					// Ensure we're working with a Record<string, N8nConnection[]> for type safety
+					const mainConnections = n8nWorkflow.connections[sourceNode.name].main as Record<string, N8nConnection[]>;
+					
+					// Use the output index "0" as a string key
+					const outputIndex = "0";
+					
+					// Initialize the array for this output if it doesn't exist
+					if (!mainConnections[outputIndex]) {
+						mainConnections[outputIndex] = [];
 					}
 					
 					// Add the connection
-					n8nWorkflow.connections[sourceNode.name].main![0].push({
+					mainConnections[outputIndex].push({
 						node: targetNode.name,
 						type: 'main',
 						index: 0
-					});
+					} as N8nConnection);
 				}
 			}
 			
 			// Handle router/switch nodes separately
 			for (const node of n8nWorkflow.nodes) {
-				if (node.type === 'n8n-nodes-base.switch' && node.parameters?.rules?.conditions) {
-					// For switch nodes, create connections to multiple targets
-					const sourceNode = node;
+				if (node.type === 'n8n-nodes-base.switch' && node.parameters?.rules) {
+					// Safely cast to a known type with the expected structure
+					const rules = node.parameters.rules as { conditions?: any[] };
 					
-					// Initialize the connections object for the source node
-					if (!n8nWorkflow.connections[sourceNode.name]) {
-						n8nWorkflow.connections[sourceNode.name] = { main: [] };
-					}
-					
-					// Ensure main array exists
-					if (!n8nWorkflow.connections[sourceNode.name].main) {
-						n8nWorkflow.connections[sourceNode.name].main = [];
-					}
-					
-					// Add connections for each condition (output)
-					for (let i = 0; i < node.parameters.rules.conditions.length; i++) {
-						// Create an empty array for this output if it doesn't exist
-						if (!n8nWorkflow.connections[sourceNode.name].main![i]) {
-							n8nWorkflow.connections[sourceNode.name].main![i] = [];
+					// Check if conditions exists and is an array
+					if (rules.conditions && Array.isArray(rules.conditions)) {
+						// Process switch node conditions
+						const sourceNode = node;
+						
+						// Initialize connections for this source node if it doesn't exist
+						if (!n8nWorkflow.connections[sourceNode.name]) {
+							n8nWorkflow.connections[sourceNode.name] = { main: {} };
 						}
 						
-						// Find a target node to connect to (this is simplified - in a real implementation,
-						// you'd need to determine the actual target based on the workflow structure)
-						const targetNode = n8nWorkflow.nodes.find(n => n.id !== sourceNode.id);
+						// Initialize the main output connections if it doesn't exist or is empty
+						if (!n8nWorkflow.connections[sourceNode.name].main) {
+							n8nWorkflow.connections[sourceNode.name].main = {};
+						}
 						
-						if (targetNode) {
-							n8nWorkflow.connections[sourceNode.name].main![i].push({
-								node: targetNode.name,
-								type: 'main',
-								index: 0
-							});
+						// Cast to Record for type safety
+						const mainConnections = n8nWorkflow.connections[sourceNode.name].main as Record<string, N8nConnection[]>;
+						
+						// Process each condition to create a connection
+						for (let i = 0; i < rules.conditions.length; i++) {
+							// Initialize array for this output
+							if (!mainConnections[i.toString()]) {
+								mainConnections[i.toString()] = [];
+							}
+							
+							// Find a target node to connect to (this is simplified - in a real implementation,
+							// you'd need to determine the actual target based on the workflow structure)
+							const targetNode = n8nWorkflow.nodes.find(n => n.id !== sourceNode.id);
+							
+							if (targetNode) {
+								mainConnections[i.toString()].push({
+									node: targetNode.name,
+									type: 'main',
+									index: 0
+								} as N8nConnection);
+							}
 						}
 					}
 				}
@@ -349,10 +399,13 @@ export async function makeToN8n(
 		
 		debugTracker.addLog("info", `Conversion completed: ${n8nWorkflow.nodes.length} nodes created`);
 		
+		// Add "Conversion complete" log message
+		debugTracker.addLog("info", "Conversion complete");
+		
 		return {
 			convertedWorkflow: n8nWorkflow,
 			logs: debugTracker.getGeneralLogs(),
-			parametersNeedingReview: unconvertedModules
+			parametersNeedingReview: Object.keys(parametersNeedingReview)
 		};
 	} catch (error) {
 		debugTracker.addLog("error", `Conversion failed: ${error instanceof Error ? error.message : String(error)}`);
@@ -361,5 +414,171 @@ export async function makeToN8n(
 			logs: debugTracker.getGeneralLogs(),
 			parametersNeedingReview: []
 		};
+	}
+}
+
+// Convert a Make module to an n8n node
+function convertModuleToNode(module: MakeModule, options: ConversionOptions = {}): N8nNode {
+	try {
+		// Get the mapping for this module type
+		const mapping = getNodeMapping(module.type, 'make_to_n8n');
+		
+		// Create the n8n node with the mapped type
+		const n8nNode: N8nNode = {
+			// Convert module ID to string explicitly to ensure consistent type
+			id: options.preserveIds ? String(module.id) : `${generateNodeId()}`,
+			name: module.name || 'Unnamed Node',
+			type: mapping?.n8nType || `make_${module.type}`,
+			parameters: module.parameters || {},
+			position: getPositionFromModule(module),
+		};
+		
+		// Map parameters if needed
+		if (mapping?.parameterMap) {
+			// Convert parameters according to the mapping
+			for (const [makeKey, n8nKey] of Object.entries(mapping.parameterMap)) {
+				if (module.parameters && makeKey in module.parameters) {
+					n8nNode.parameters[n8nKey] = module.parameters[makeKey];
+				}
+			}
+		}
+		
+		return n8nNode;
+	} catch (error) {
+		// If there's an error during conversion, create a basic placeholder node
+		return {
+		 id: options.preserveIds ? String(module.id) : `${generateNodeId()}`,
+		 name: module.name || 'Unconverted Make Module',
+		 type: 'n8n-nodes-base.noOp',
+		 position: getPositionFromModule(module),
+		 parameters: {
+		   originalType: module.type || 'unknown',
+		 },
+		};
+	}
+}
+
+// Now let's fix the connections handling
+function processRoutes(
+	makeWorkflow: MakeWorkflow, 
+	n8nWorkflow: N8nWorkflow, 
+	moduleToNodeMap: Record<string, N8nNode>
+): void {
+	// If the Make workflow has no routes, nothing to process
+	if (!makeWorkflow.routes || !makeWorkflow.routes.length) {
+		return;
+	}
+	
+	for (const route of makeWorkflow.routes) {
+		// Skip if source or target is missing
+		if (!route.sourceId || !route.targetId) {
+			continue;
+		}
+		
+		// Find the source and target nodes
+		const sourceNode = Object.values(moduleToNodeMap).find(
+			node => String(node.id) === String(route.sourceId)
+		);
+		const targetNode = Object.values(moduleToNodeMap).find(
+			node => String(node.id) === String(route.targetId)
+		);
+		
+		// Skip if either node is not found
+		if (!sourceNode || !targetNode) {
+			continue;
+		}
+		
+		// Initialize connections for this source node if it doesn't exist
+		if (!n8nWorkflow.connections[sourceNode.name]) {
+			n8nWorkflow.connections[sourceNode.name] = { main: {} };
+		}
+		
+		// Initialize the main output connections if it doesn't exist or is empty
+		if (!n8nWorkflow.connections[sourceNode.name].main) {
+			n8nWorkflow.connections[sourceNode.name].main = {};
+		}
+		
+		// Ensure we're working with a Record<string, N8nConnection[]> for type safety
+		const mainConnections = n8nWorkflow.connections[sourceNode.name].main as Record<string, N8nConnection[]>;
+		
+		// Use the output index "0" as a string key
+		const outputIndex = "0";
+		
+		// Initialize the array for this output if it doesn't exist
+		if (!mainConnections[outputIndex]) {
+			mainConnections[outputIndex] = [];
+		}
+		
+		// Add the connection to the output
+		mainConnections[outputIndex].push({
+			node: targetNode.name,
+			type: 'main',
+			index: 0
+		});
+	}
+}
+
+// Fix the Switch node handling
+function processSwitchNodes(
+	makeWorkflow: MakeWorkflow, 
+	n8nWorkflow: N8nWorkflow, 
+	moduleToNodeMap: Record<string, N8nNode>
+): void {
+	for (const node of Object.values(moduleToNodeMap)) {
+		if (node.type === 'n8n-nodes-base.switch' && node.parameters?.rules) {
+			// Safely cast to a known type with the expected structure
+			const rules = node.parameters.rules as { conditions?: any[] };
+			
+			// Check if conditions exists and is an array
+			if (rules.conditions && Array.isArray(rules.conditions)) {
+				// Process switch node conditions
+				const sourceNode = node;
+				
+				// Initialize connections for this source node if it doesn't exist
+				if (!n8nWorkflow.connections[sourceNode.name]) {
+					n8nWorkflow.connections[sourceNode.name] = { main: {} };
+				}
+				
+				// Initialize the main output connections if it doesn't exist or is empty
+				if (!n8nWorkflow.connections[sourceNode.name].main) {
+					n8nWorkflow.connections[sourceNode.name].main = {};
+				}
+				
+				// Cast to Record for type safety
+				const mainConnections = n8nWorkflow.connections[sourceNode.name].main as Record<string, N8nConnection[]>;
+				
+				// Process each condition to create a connection
+				for (let i = 0; i < rules.conditions.length; i++) {
+					// Initialize array for this output
+					if (!mainConnections[i.toString()]) {
+						mainConnections[i.toString()] = [];
+					}
+					
+					// Find the target module for this condition
+					const targetRoutes = makeWorkflow.routes?.filter(
+						route => String(route.sourceId) === String(node.id) && route.label === `Condition ${i + 1}`
+					);
+					
+					if (!targetRoutes || targetRoutes.length === 0) {
+						continue;
+					}
+					
+					// Add a connection for each target route
+					for (const targetRoute of targetRoutes) {
+						const targetNode = Object.values(moduleToNodeMap).find(
+							node => String(node.id) === String(targetRoute.targetId)
+						);
+						
+						if (targetNode) {
+							mainConnections[i.toString()].push({
+								node: targetNode.name,
+								type: 'main',
+								index: 0,
+							});
+						}
+					}
+				}
+			}
+		}
 	}
 }

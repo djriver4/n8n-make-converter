@@ -58,6 +58,61 @@ export const BASE_NODE_MAPPING = {
       description: "Parse JSON data",
       displayName: "JSON Parse"
     },
+    "n8n-nodes-base.set": {
+      type: "builtin:Variable",
+      parameterMap: {
+        values: "variables",
+        options: "options"
+      },
+      description: "Set variables in workflow context",
+      displayName: "Set Variable"
+    },
+    "n8n-nodes-base.if": {
+      type: "builtin:ConditionalRouter",
+      parameterMap: {
+        conditions: "conditions",
+        fallbackOutput: "fallback"
+      },
+      description: "Conditional branch based on conditions",
+      displayName: "If Condition"
+    },
+    "n8n-nodes-base.emailSend": {
+      type: "email:ActionSendEmail",
+      parameterMap: {
+        to: "to",
+        cc: "cc",
+        bcc: "bcc",
+        subject: "subject",
+        text: "text",
+        html: "html",
+        attachments: "attachments"
+      },
+      description: "Send email messages",
+      displayName: "Email Send"
+    },
+    "n8n-nodes-base.webhook": {
+      type: "webhooks",
+      parameterMap: {
+        httpMethod: "method",
+        path: "url",
+        responseCode: "responseCode",
+        responseData: "responseBody",
+        options: "options"
+      },
+      description: "Receive data from webhook calls",
+      displayName: "Webhook"
+    },
+    "n8n-nodes-base.dateTime": {
+      type: "date",
+      parameterMap: {
+        value: "date",
+        format: "format",
+        toFormat: "outputFormat",
+        options: "options"
+      },
+      description: "Manipulate dates and times",
+      displayName: "Date & Time"
+    },
     "n8n-nodes-base.gmail": {
       type: "gmail:ActionSendEmail",
       parameterMap: {
@@ -151,6 +206,61 @@ export const BASE_NODE_MAPPING = {
       },
       description: "Route workflow execution based on conditions",
       displayName: "Router"
+    },
+    "builtin:Variable": {
+      type: "n8n-nodes-base.set",
+      parameterMap: {
+        variables: "values",
+        options: "options"
+      },
+      description: "Set variables in workflow context",
+      displayName: "Set Variable"
+    },
+    "builtin:ConditionalRouter": {
+      type: "n8n-nodes-base.if",
+      parameterMap: {
+        conditions: "conditions",
+        fallback: "fallbackOutput"
+      },
+      description: "Conditional branch based on conditions",
+      displayName: "If Condition"
+    },
+    "email:ActionSendEmail": {
+      type: "n8n-nodes-base.emailSend",
+      parameterMap: {
+        to: "to",
+        cc: "cc",
+        bcc: "bcc",
+        subject: "subject",
+        text: "text",
+        html: "html",
+        attachments: "attachments"
+      },
+      description: "Send email messages",
+      displayName: "Email Send"
+    },
+    "webhooks": {
+      type: "n8n-nodes-base.webhook",
+      parameterMap: {
+        method: "httpMethod",
+        url: "path",
+        responseCode: "responseCode",
+        responseBody: "responseData",
+        options: "options"
+      },
+      description: "Receive data from webhook calls",
+      displayName: "Webhook"
+    },
+    "date": {
+      type: "n8n-nodes-base.dateTime",
+      parameterMap: {
+        date: "value",
+        format: "format",
+        outputFormat: "toFormat",
+        options: "options"
+      },
+      description: "Manipulate dates and times",
+      displayName: "Date & Time"
     },
     "tools": {
       type: "n8n-nodes-base.function",

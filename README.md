@@ -11,6 +11,7 @@ A powerful tool for converting automation workflows between [n8n](https://n8n.io
 - **Visual UI**: Web interface for easy workflow conversion and visualization
 - **Detailed Reporting**: Identifies potential issues or unmapped nodes
 - **Performance Monitoring**: Built-in performance tracking for processing large workflows
+- **Validation Tools**: Automated validation of fixtures and node mappings for code quality
 
 ## Getting Started
 
@@ -56,6 +57,10 @@ lib/                     # Core converter library
 app/                     # Next.js frontend app
 components/              # UI components
 docs/                    # Documentation
+__tests__/utils/         # Test utilities and validation tools
+├── fixture-validator.ts # Validates test fixtures
+├── mapping-validator.ts # Validates node mappings
+├── validate-codebase.ts # Main validation script
 ```
 
 ### Core Components
@@ -64,16 +69,60 @@ docs/                    # Documentation
 - **Node Mapper**: Maps nodes between platforms using mapping definitions
 - **Parameter Processor**: Handles conversion of node parameters
 - **Expression Evaluator**: Transforms expressions between platform formats
+- **Validation Tools**: Ensures code quality and completeness of mappings
 
 For detailed documentation on each component, see the [docs directory](./docs).
 
 ## Documentation
 
-- [Conversion Logic](docs/conversion-logic.md): Explains how the conversion process works
-- [Expression Evaluator](docs/expression-evaluator.md): Details on expression handling
+Comprehensive documentation is available in the [docs directory](./docs):
+
+### Core Concepts
+- [Architecture](docs/architecture.md): Overview of system architecture and design principles
+- [Conversion Logic](docs/conversion-logic.md): Explains the workflow conversion process
+- [Expression Evaluator](docs/expression-evaluator.md): Details on expression handling, including string concatenation
 - [Node Mapping](docs/node-mapping.md): How nodes are mapped between platforms
-- [Version Compatibility](docs/version-compatibility.md): Platform version information
+
+### Implementation Guides
+- [Contributing Node Mappings](docs/contributing-node-mappings.md): How to add new node type mappings
+- [Fixture and Mapping Guidelines](docs/fixture-and-mapping-guidelines.md): Guidelines for test fixtures and mappings
+
+### Project Status
 - [Implementation Status](docs/implementation-status.md): Current project status
+- [Version Compatibility](docs/version-compatibility.md): Platform version information
+- [Recent Fixes](docs/recent-fixes.md): Latest improvements and bug fixes
+
+### Developer Guides
+- [Contributing](docs/contributing.md): How to contribute to the project
+- [Usage Guide](docs/usage-guide.md): How to use the converter
+- [Troubleshooting](docs/troubleshooting.md): Solutions for common issues
+
+For a complete documentation index, please see [Documentation Index](./docs/README.md).
+
+### Documentation Updates
+
+The documentation has been recently audited and improved with:
+- Comprehensive troubleshooting guide
+- Recent fixes documentation
+- Documentation navigation index
+- TypeScript interface improvements guide
+
+See the [Documentation Audit Summary](./docs/documentation-audit-summary.md) for details.
+
+## Validation and Quality Tools
+
+The project includes validation tools to ensure code quality:
+
+```bash
+# Run validation of fixtures and node mappings
+npm run validate
+```
+
+This command:
+- Validates that all required test fixtures exist and have the correct structure
+- Ensures all required node mappings are present
+- Generates reports on mapping coverage
+- Provides templates for missing mappings
 
 ## Testing
 
@@ -97,6 +146,11 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 3. Commit your changes (`git commit -m 'Add some amazing feature'`)
 4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
+
+Before submitting your PR, please:
+- Run the validation tools (`npm run validate`)
+- Ensure tests pass (`npm test`)
+- Update documentation as needed
 
 ## License
 

@@ -254,35 +254,65 @@ export const httpMapping: NodeMapping = {
       sourcePath: "method",
       targetPath: "method"
     }
-    // Add more parameter mappings
+    // Add more parameter mappings as needed
   }
 };
 ```
 
-### 3. Add Tests
+### 3. Register the Mapping
 
-Add tests for your new mapping in `__tests__/unit/node-mappings/`:
+Add your mapping to the database in `lib/node-mappings/mapping-database.ts`:
 
 ```typescript
-describe('HTTP Node Mapping', () => {
-  it('should correctly map HTTP request parameters', () => {
-    // Test implementation
-  });
+import { httpMapping } from './base-mappings';
+
+export const nodeMappingDatabase: NodeMappingDatabase = {
+  version: "1.0",
+  lastUpdated: new Date().toISOString(),
+  mappings: {
+    // Existing mappings...
+    "n8n-nodes-base.httpRequest": httpMapping,
+    // Your new mapping...
+  }
+};
+```
+
+### 4. Add Tests
+
+Create tests for your mapping in the appropriate test file:
+
+```typescript
+it('should convert a HTTP Request node correctly', () => {
+  const n8nNode = {
+    // Test node definition
+  };
+  
+  const result = mapper.convertN8nNodeToMakeModule(n8nNode);
+  
+  // Assertions for your mapping
 });
 ```
 
-### 4. Update Documentation
-
-Update the node mapping documentation to include your new node type.
-
 ## Reporting Issues
 
-If you find a bug or have a feature request, please create an issue on GitHub:
+If you encounter a bug or have a feature request, please report it through GitHub Issues:
 
-1. Search existing issues to avoid duplicates
-2. Use the issue template if available
-3. Provide clear steps to reproduce for bugs
-4. For feature requests, explain the use case and benefits
+1. Check if the issue already exists
+2. Use the appropriate template (bug report or feature request)
+3. Provide detailed reproduction steps for bugs
+4. Include relevant logs and error messages
+5. Describe expected behavior vs. actual behavior
+
+## Getting Help
+
+If you have questions about contributing:
+
+1. Check the [documentation](../README.md) for information
+2. Ask in GitHub Discussions
+3. Contact the project maintainers
+
+Thank you for contributing to the n8n-Make Converter! Your efforts help make workflow conversion between platforms more seamless for users. 
+
 
 ## Code of Conduct
 
