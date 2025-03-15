@@ -2,6 +2,7 @@
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { NodeInfoManager } from "@/components/node-info-manager"
+import { CustomMappingsManager } from "@/components/custom-mappings-manager"
 
 export default function SettingsPage() {
   return (
@@ -28,13 +29,7 @@ export default function SettingsPage() {
           </TabsContent>
           
           <TabsContent value="mappings" className="space-y-6">
-            <div className="bg-white dark:bg-slate-800 rounded-lg shadow p-6">
-              <h2 className="text-xl font-semibold mb-4">Custom Node Mappings</h2>
-              <p className="text-slate-600 dark:text-slate-400">
-                This section will allow you to create and manage custom mappings between n8n nodes and Make.com modules.
-                (Coming soon)
-              </p>
-            </div>
+            <CustomMappingsManager />
           </TabsContent>
           
           <TabsContent value="preferences" className="space-y-6">
