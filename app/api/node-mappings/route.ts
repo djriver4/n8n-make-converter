@@ -125,6 +125,64 @@ const nodeMapping = {
         conditions: ['conditions']
       }
     },
+    // helper:Note mapping (for comments and documentation)
+    helperNote: {
+      sourceNodeType: 'helper:Note',
+      targetNodeType: 'n8n-nodes-base.noOp',
+      sourceParameterPaths: {
+        content: ['notes']
+      },
+      targetParameterPaths: {
+        notes: ['content']
+      }
+    },
+    // builtin:BasicRouter mapping (for switch/router functionality)
+    basicRouter: {
+      sourceNodeType: 'builtin:BasicRouter',
+      targetNodeType: 'n8n-nodes-base.switch',
+      sourceParameterPaths: {
+        conditions: ['rules'],
+        routes: ['output']
+      },
+      targetParameterPaths: {
+        rules: ['conditions'],
+        output: ['routes']
+      }
+    },
+    // webhooks mapping (for webhook functionality)
+    webhooks: {
+      sourceNodeType: 'webhooks',
+      targetNodeType: 'n8n-nodes-base.webhook',
+      sourceParameterPaths: {
+        method: ['httpMethod'],
+        url: ['path'],
+        responseType: ['responseMode'],
+        responseData: ['responseData']
+      },
+      targetParameterPaths: {
+        httpMethod: ['method'],
+        path: ['url'],
+        responseMode: ['responseType'],
+        responseData: ['responseData']
+      }
+    },
+    // Custom Webhook mapping 
+    customWebhook: {
+      sourceNodeType: 'webhooks:CustomWebhook',
+      targetNodeType: 'n8n-nodes-base.webhook',
+      sourceParameterPaths: {
+        method: ['httpMethod'],
+        url: ['path'],
+        responseType: ['responseMode'],
+        responseData: ['responseData']
+      },
+      targetParameterPaths: {
+        httpMethod: ['method'],
+        path: ['url'],
+        responseMode: ['responseType'],
+        responseData: ['responseData']
+      }
+    },
     // Generic placeholder for unmapped nodes
     placeholder: {
       sourceNodeType: 'placeholder',
