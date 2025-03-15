@@ -140,13 +140,33 @@ export class NodeMappingLoader {
       this.mappingDatabase = basicMappings;
       
       try {
-        // Try to load from the node-mappings.json file (this is optional)
-        // This would be used in a real implementation to load mappings from a file
-        // but we'll keep the hardcoded ones as a fallback
-        const mappingUrl = this.getMappingUrl();
-        logger.info(`Attempting to load additional mappings from ${mappingUrl}`);
-        
-        // Fall back to the hardcoded mappings if the file loading fails
+        // In a browser environment, try to load mappings via fetch
+        // This replaces the file system approach for a web application
+        if (typeof window !== 'undefined') {
+          const mappingUrl = this.getMappingUrl();
+          logger.info(`Attempting to load additional mappings from ${mappingUrl}`);
+          
+          try {
+            const response = await fetch(mappingUrl);
+            if (response.ok) {
+              const additionalMappings = await response.json();
+              
+              // Merge with our basic mappings
+              this.mappingDatabase = {
+                ...basicMappings,
+                mappings: {
+                  ...basicMappings.mappings,
+                  ...additionalMappings.mappings
+                }
+              };
+              
+              logger.info(`Successfully loaded additional mappings`);
+            }
+          } catch (fetchError) {
+            logger.warn(`Could not fetch additional mappings: ${fetchError}`);
+            // Fall back to the hardcoded mappings
+          }
+        }
       } catch (error) {
         logger.error(`Error loading mappings: ${error}`);
         // We still have the hardcoded basic mappings, so continue
@@ -171,6 +191,6 @@ export class NodeMappingLoader {
    */
   public getMappingUrl(): string {
     // In a real implementation, this might be configurable or environment specific
-    return '/data/nodes-mapping.json';
+    return '/api/node-mappings';
   }
 } 
