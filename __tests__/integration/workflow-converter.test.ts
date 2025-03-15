@@ -237,7 +237,7 @@ describe('Workflow Converter Integration Tests', () => {
       const makeWorkflow: MakeWorkflow = {
         name: 'Simple HTTP Workflow',
         active: true,
-        modules: [
+        flow: [
           {
             id: '1',
             name: 'HTTP',
@@ -291,7 +291,7 @@ describe('Workflow Converter Integration Tests', () => {
       const makeWorkflow: MakeWorkflow = {
         name: 'Workflow with Expressions',
         active: true,
-        modules: [
+        flow: [
           {
             id: '1',
             name: 'HTTP',

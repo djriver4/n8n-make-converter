@@ -24,7 +24,8 @@ export function NodeInfoManager() {
 
   useEffect(() => {
     // Initialize from the store
-    setNodes(NodeInfoStore.getAllNodes())
+    const storedNodes = NodeInfoStore.getAllNodes()
+    setNodes(storedNodes)
     setIsLoading(NodeInfoStore.isLoading())
     setError(NodeInfoStore.getError()?.message || null)
     
@@ -42,6 +43,24 @@ export function NodeInfoManager() {
       setEnhancedNodes(getEnhancedNodeTypes())
       setIsUsedForConversion(areMappingsEnhanced())
     }, 5000)
+    
+    // Auto-load local nodes if none are loaded
+    if (Object.keys(storedNodes).length === 0) {
+      // Use setTimeout to allow the component to render first
+      setTimeout(async () => {
+        try {
+          await loadLocalNodes();
+          // If still no nodes loaded, try fetching from GitHub
+          if (Object.keys(nodes).length === 0) {
+            console.log("No nodes loaded from local file, fetching from GitHub...");
+            fetchNodes();
+          }
+        } catch (err) {
+          console.error("Failed to load local nodes, falling back to GitHub:", err);
+          fetchNodes();
+        }
+      }, 500)
+    }
     
     return () => clearInterval(intervalId)
   }, [])
@@ -154,7 +173,14 @@ export function NodeInfoManager() {
     
     try {
       // Use the path relative to the public directory
-      const loadedNodes = await NodeInfoStore.loadNodesFromFile('/nodes-n8n.json')
+      const localPath = '/nodes-n8n.json'
+      console.log("Loading local nodes from:", localPath)
+      const loadedNodes = await NodeInfoStore.loadNodesFromFile(localPath)
+      
+      if (Object.keys(loadedNodes).length === 0) {
+        throw new Error("No nodes found in the local file. The file may be missing or empty.")
+      }
+      
       setNodes(loadedNodes)
       setLastFetched(new Date().toLocaleString())
       
@@ -162,6 +188,7 @@ export function NodeInfoManager() {
       setEnhancedNodes(getEnhancedNodeTypes())
       setIsUsedForConversion(areMappingsEnhanced())
     } catch (err) {
+      console.error("Error loading local nodes:", err)
       setError(err instanceof Error ? err.message : String(err))
     } finally {
       setIsLoading(false)
@@ -310,7 +337,7 @@ export function NodeInfoManager() {
                         <TableCell className="font-mono text-xs">{nodeType}</TableCell>
                         <TableCell>{nodeInfo.displayName}</TableCell>
                         <TableCell className="max-w-md truncate">{nodeInfo.description}</TableCell>
-                        <TableCell>{Object.keys(nodeInfo.properties).length}</TableCell>
+                        <TableCell>{nodeInfo.properties ? Object.keys(nodeInfo.properties).length : 0}</TableCell>
                         <TableCell>
                           {isNodeEnhanced(nodeType) ? (
                             <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200">

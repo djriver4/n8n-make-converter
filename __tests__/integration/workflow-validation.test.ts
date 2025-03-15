@@ -70,15 +70,28 @@ describe('Workflow Validation Integration Tests', () => {
     });
     
     test('should reject invalid input format', async () => {
-      // Create an invalid n8n workflow by removing required properties
+      // Create an invalid n8n workflow with a node that's missing required properties
       const invalidWorkflow: Partial<N8nWorkflow> = {
         name: "Invalid Workflow",
         active: false,
-        connections: {}
+        connections: {},
+        // Add nodes array with an invalid node (missing required properties)
+        nodes: [
+          // Missing id, name, type, parameters, position
+          {} as any
+        ]
       };
+      
+      // Test the validation function directly
+      const validationResult = validateN8nWorkflow(invalidWorkflow as any);
+      console.log('Direct validation result:', validationResult);
       
       // Perform the conversion with validation enabled
       const result = await convertN8nToMake(invalidWorkflow as N8nWorkflow);
+      console.log('Conversion result:', { 
+        isValidInput: result.isValidInput,
+        hasErrorLogs: result.logs.some(log => log.type === 'error')
+      });
       
       // Check that conversion was rejected due to invalid input
       expect(result.isValidInput).toBe(false);

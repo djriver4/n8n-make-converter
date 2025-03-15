@@ -52,7 +52,7 @@ export class GoogleSheetsPlugin implements ConverterPlugin {
 
       // Map values from Make.com format to n8n format
       if (sourceNode.mapper?.values) {
-        const values = {}
+        const values: Record<string, any> = {}
         Object.entries(sourceNode.mapper.values).forEach(([key, value]) => {
           // Convert from Make.com's numeric keys to n8n's column names
           const columnName = String.fromCharCode(65 + Number.parseInt(key)) // 0 -> A, 1 -> B, etc.
@@ -95,7 +95,7 @@ export class GoogleSheetsPlugin implements ConverterPlugin {
 
       // Map values from n8n format to Make.com format
       if (sourceNode.parameters?.values) {
-        const values = {}
+        const values: Record<string, any> = {}
         Object.entries(sourceNode.parameters.values).forEach(([key, value]) => {
           // Convert from n8n's column names to Make.com's numeric keys
           const numericKey = key.charCodeAt(0) - 65 // A -> 0, B -> 1, etc.

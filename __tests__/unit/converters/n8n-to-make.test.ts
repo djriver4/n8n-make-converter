@@ -179,15 +179,15 @@ describe('n8n to Make Converter', () => {
     // Perform the conversion
     const result = await n8nToMake(sourceWorkflow, debugTracker);
     
-    // Check the parametersNeedingReview directly from the result
-    expect(result.parametersNeedingReview).toBeDefined();
-    expect(Array.isArray(result.parametersNeedingReview)).toBe(true);
+    // Check the paramsNeedingReview directly from the result
+    expect(result.paramsNeedingReview).toBeDefined();
+    expect(Array.isArray(result.paramsNeedingReview)).toBe(true);
     
     // Log parameters needing review
-    console.log('Parameters requiring manual adjustment:', result.parametersNeedingReview);
+    console.log('Parameters requiring manual adjustment:', result.paramsNeedingReview);
     
     // We expect the Function node's code parameter to need review
-    const foundFunctionIssue = result.parametersNeedingReview.some(
+    const foundFunctionIssue = result.paramsNeedingReview.some(
       param => param.includes('Function') && param.includes('code')
     );
     expect(foundFunctionIssue).toBe(true);

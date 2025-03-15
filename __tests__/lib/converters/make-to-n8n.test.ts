@@ -11,8 +11,47 @@ import {
 import { ConversionLog, WorkflowConversionResult, ParameterReview } from "../../../lib/workflow-converter"
 import { N8nWorkflow } from "../../../lib/node-mappings/node-types"
 
-// Mock the node mappings
-jest.mock("../../../lib/mappings/node-mapping")
+// Create the mock before the import to ensure it's applied
+jest.mock('../../../lib/mappings/node-mapping', () => ({
+  getNodeMappings: jest.fn().mockReturnValue({
+    makeToN8n: {
+      "http:ActionSendData": {
+        type: "n8n-nodes-base.httpRequest",
+        parameterMap: {
+          url: "url",
+          method: "method",
+          data: "body",
+          headers: "headers",
+        },
+      },
+      "helper:TriggerApp": {
+        type: "n8n-nodes-base.start",
+        parameterMap: {},
+      },
+      "webhook:CustomWebhook": {
+        type: "n8n-nodes-base.webhook",
+        parameterMap: {
+          path: "path",
+          responseMode: "responseMode",
+        },
+      },
+      "builtin:BasicRouter": {
+        type: "n8n-nodes-base.switch",
+        parameterMap: {},
+      },
+      "builtin:SetVariable": {
+        type: "n8n-nodes-base.set",
+        parameterMap: {
+          values: "values",
+        },
+      },
+    },
+  }),
+  baseNodeMapping: {
+    makeToN8n: {},
+    n8nToMake: {},
+  }
+}))
 
 describe("makeToN8n", () => {
   beforeEach(() => {

@@ -10,6 +10,7 @@ import logger from "../logger";
 import { NodeMapper } from "../node-mappings/node-mapper";
 import { NodeMappingLoader } from "../node-mappings/node-mapping-loader";
 import { N8nNode, N8nConnection, MakeModule, MakeWorkflow, N8nWorkflow, ParameterValue } from '../node-mappings/node-types';
+import { ConversionLog, ParameterReview, WorkflowDebugInfo } from '../workflow-converter';
 
 // Define interfaces for type safety
 interface NodeMappingDefinition {
@@ -32,7 +33,9 @@ interface ConversionResult {
 		type: "info" | "warning" | "error";
 		message: string;
 	}>;
-	parametersNeedingReview: string[];
+	paramsNeedingReview: ParameterReview[];
+	unmappedNodes: string[];
+	debug: WorkflowDebugInfo;
 }
 
 // Define conversion options interface
@@ -70,12 +73,45 @@ function getNodeMapping(moduleType: string | undefined, direction: string): Node
 }
 
 /**
+ * Helper function to map Make module types to n8n node types
+ */
+function mapMakeModuleToN8nNodeType(moduleType: string | undefined): string {
+	if (!moduleType) return 'n8n-nodes-base.noOp';
+	
+	switch (moduleType.toLowerCase()) {
+		case 'http':
+			return 'n8n-nodes-base.httpRequest';
+		case 'setVariable':
+			return 'n8n-nodes-base.set';
+		case 'json':
+			return 'n8n-nodes-base.code';
+		case 'router':
+			return 'n8n-nodes-base.switch';
+		case 'scheduler':
+		case 'timer':
+			return 'n8n-nodes-base.schedule';
+		case 'webhook':
+			return 'n8n-nodes-base.webhook';
+		default:
+			return 'n8n-nodes-base.noOp';
+	}
+}
+
+/**
  * Helper function to get position from module
  */
 function getPositionFromModule(module: MakeModule): [number, number] {
-	if (module.position && Array.isArray(module.position) && module.position.length === 2) {
-		return module.position;
+	if (module.position && Array.isArray(module.position)) {
+		// Ensure we have exactly two numbers
+		if (module.position.length >= 2) {
+			return [module.position[0], module.position[1]];
+		}
+		// If we have only one number, use it for x and default y to 0
+		else if (module.position.length === 1) {
+			return [module.position[0], 0];
+		}
 	}
+	// Default position if none provided or invalid
 	return [0, 0];
 }
 
@@ -106,19 +142,19 @@ export async function makeToN8n(
 	};
 	
 	try {
-		// Initialize the node mapper if needed
+		// Initialize the node mapper
+		const mappingLoader = NodeMappingLoader.getInstance();
+		await mappingLoader.loadMappings();
+		const mappingDatabase = mappingLoader.getMappings();
+		const nodeMapper = new NodeMapper(mappingDatabase);
+		
+		// Log that we're using the NodeMapper
 		if (options.useEnhancedMapper) {
-			const mappingLoader = NodeMappingLoader.getInstance();
-			await mappingLoader.loadMappings();
-			const mappingDatabase = mappingLoader.getMappings();
-			const nodeMapper = new NodeMapper(mappingDatabase);
-			
-			// Here we could use the enhanced mapper for better conversion
 			logger.info('Using enhanced node mapper for conversion');
 		} else {
-			// Use the simpler mapping approach from node-mapping.ts
 			logger.info('Using basic node mapper for conversion');
 		}
+		debugTracker.addLog("info", "NodeMapper initialized with mapping database");
 
 		// Validate the Make.com workflow
 		if (!makeWorkflow) {
@@ -126,7 +162,14 @@ export async function makeToN8n(
 			return {
 				convertedWorkflow: {},
 				logs: debugTracker.getGeneralLogs(),
-				parametersNeedingReview: []
+				paramsNeedingReview: [],
+				unmappedNodes: [],
+				debug: {
+					mappedModules: [],
+					unmappedModules: [],
+					mappedNodes: [],
+					unmappedNodes: []
+				}
 			};
 		}
 		
@@ -145,7 +188,14 @@ export async function makeToN8n(
 			return {
 				convertedWorkflow: {},
 				logs: debugTracker.getGeneralLogs(),
-				parametersNeedingReview: []
+				paramsNeedingReview: [],
+				unmappedNodes: [],
+				debug: {
+					mappedModules: [],
+					unmappedModules: [],
+					mappedNodes: [],
+					unmappedNodes: []
+				}
 			};
 		}
 		
@@ -168,20 +218,35 @@ export async function makeToN8n(
 		
 		// Special handling for specific node types that need manual review
 		const nodesToReview: string[] = [];
-		const parametersNeedingReview: Record<string, any> = {};
+		const parametersNeedingReview: ParameterReview[] = [];
 
 		// Look for specific module types that likely need manual adjustment
 		for (const module of (makeWorkflow.flow || [])) {
 			if (module.type === 'tools' && module.parameters?.code) {
 				// Function/code modules often need review
-				parametersNeedingReview[`Node Tools, parameter functionCode`] = {
-					nodeType: 'n8n-nodes-base.function',
+				parametersNeedingReview.push({
+					nodeId: String(module.id),
+					parameters: ['code'],
 					reason: 'Complex expression needs review'
-				};
+				});
+			}
+			
+			// Check for expressions in parameters
+			if (module.parameters) {
+				for (const [paramName, paramValue] of Object.entries(module.parameters)) {
+					if (typeof paramValue === 'string' && paramValue.includes('{{') && paramValue.includes('}}')) {
+						parametersNeedingReview.push({
+							nodeId: String(module.id),
+							parameters: [paramName],
+							reason: 'Contains Make.com expression that needs to be converted to n8n format'
+						});
+					}
+				}
 			}
 		}
 		
 		// Convert each Make.com module to an n8n node
+		const moduleToNodeMap: Record<string, N8nNode> = {};
 		for (const module of makeWorkflow.flow) {
 			try {
 				// Skip disabled modules if specified in options
@@ -190,38 +255,41 @@ export async function makeToN8n(
 					continue;
 				}
 				
-				// Get the module type
-				const moduleType = module.module as string;
-				
-				// Find the mapping for this module type
-				const mapping = mappings.makeToN8n[moduleType];
-				
-				if (!mapping) {
-					// If strict mode is enabled, fail the conversion
-					if (options.strictMode) {
-						debugTracker.addLog("error", `Strict mode enabled: No mapping found for Make.com module type: ${moduleType}`);
-						return {
-							convertedWorkflow: {},
-							logs: debugTracker.getGeneralLogs(),
-							parametersNeedingReview: []
-						};
-					}
+				// Use the NodeMapper to convert the module
+				try {
+					debugTracker.addLog("info", `Converting module ${module.id} using NodeMapper`);
+					const conversionResult = nodeMapper.convertMakeModuleToN8nNode(module);
+					const n8nNode = conversionResult.node as N8nNode;
 					
-					// Otherwise, create a stub node
-					debugTracker.addLog("warning", `Failed to convert module ${module.label || module.name}: No mapping found for Make.com module type: ${moduleType}`);
-					unconvertedModules.push(module.label || module.name);
+					// Ensure we have an ID and position
+					n8nNode.id = options.preserveIds ? String(module.id) : String(n8nWorkflow.nodes.length + 1);
+					n8nNode.position = n8nNode.position || [
+						(n8nWorkflow.nodes.length * 200),
+						0
+					];
 					
-					// Add a placeholder node
+					// Add the node to the workflow
+					n8nWorkflow.nodes.push(n8nNode);
+					
+					// Map module ID to n8n node for connection processing
+					moduleToNodeMap[module.id] = n8nNode;
+					
+					debugTracker.addLog("info", `Converted module ${module.id} to node type ${n8nNode.type}`);
+				} catch (error) {
+					// Log the error and create a placeholder node instead
+					debugTracker.addLog("error", `Failed to convert module ${module.id}: ${error instanceof Error ? error.message : String(error)}`);
+					
+					// Create a placeholder node
 					const placeholderNode: N8nNode = {
 						id: options.preserveIds ? String(module.id) : String(n8nWorkflow.nodes.length + 1),
-						name: module.label || `Placeholder ${n8nWorkflow.nodes.length + 1}`,
+						name: module.label || module.name || `Node ${n8nWorkflow.nodes.length + 1}`,
 						type: "n8n-nodes-base.noOp",
 						parameters: {
-							displayName: `Placeholder for ${module.label || module.name} (${moduleType})`,
+							displayName: `Failed to convert ${module.label || module.name} (${module.type})`,
 							__stubInfo: {
-								originalModuleType: moduleType,
+								originalModuleType: module.type,
 								originalModuleName: module.label || module.name,
-								note: `This module could not be automatically converted. Original type: ${moduleType}`
+								note: `This module could not be automatically converted due to an error. Original type: ${module.type}`
 							}
 						},
 						position: [
@@ -231,64 +299,8 @@ export async function makeToN8n(
 					};
 					
 					n8nWorkflow.nodes.push(placeholderNode);
-					continue;
+					moduleToNodeMap[module.id] = placeholderNode;
 				}
-				
-				// Create the n8n node
-				const n8nNode: N8nNode = {
-					id: options.preserveIds ? String(module.id) : String(n8nWorkflow.nodes.length + 1),
-					name: module.label || module.name || `Node ${n8nWorkflow.nodes.length + 1}`,
-					type: mapping.type,
-					parameters: {},
-					typeVersion: 1,
-					position: [
-						(n8nWorkflow.nodes.length * 200),
-						0
-					]
-				};
-				
-				// Map the parameters
-				if (module.mapper && mapping.parameterMap) {
-					for (const [makeParam, n8nParam] of Object.entries(mapping.parameterMap)) {
-						if (module.mapper[makeParam] !== undefined) {
-							n8nNode.parameters[n8nParam] = module.mapper[makeParam];
-						}
-					}
-				}
-				
-				// Handle special node types
-				if (moduleType === 'builtin:BasicRouter' && mapping.type === 'n8n-nodes-base.switch') {
-					// Handle router module
-					if (module.routes && Array.isArray(module.routes)) {
-						// Create rules object with conditions
-						n8nNode.parameters.rules = {
-							conditions: module.routes.map((route: any) => ({
-								operation: route.condition?.operator === 'eq' ? 'equal' : 'notEqual',
-								value1: route.condition?.left,
-								value2: route.condition?.right
-							}))
-						};
-					}
-				}
-				
-				// Handle credentials
-				if (module.parameters) {
-					const credentials: Record<string, any> = {};
-					
-					for (const [paramName, paramValue] of Object.entries(module.parameters as Record<string, any>)) {
-						if (paramName.startsWith('__IMTCONN__')) {
-							const credName = paramName.replace('__IMTCONN__', '');
-							credentials[credName] = paramValue;
-						}
-					}
-					
-					if (Object.keys(credentials).length > 0) {
-						n8nNode.credentials = credentials;
-					}
-				}
-				
-				// Add the node to the workflow
-				n8nWorkflow.nodes.push(n8nNode);
 				
 			} catch (error) {
 				debugTracker.addLog("error", `Error converting module ${module.label || module.name}: ${error instanceof Error ? error.message : String(error)}`);
@@ -397,6 +409,23 @@ export async function makeToN8n(
 			}
 		}
 		
+		// Prepare debug info
+		const debugInfo: WorkflowDebugInfo = {
+			mappedModules: makeWorkflow.flow.map((module: any) => ({
+				id: module.id,
+				type: module.module,
+				mappedType: mappings.makeToN8n[module.module]?.type || 'unmapped'
+			})),
+			unmappedModules: makeWorkflow.flow
+				.filter((module: any) => !mappings.makeToN8n[module.module])
+				.map((module: any) => ({
+					id: module.id,
+					type: module.module
+				})),
+			mappedNodes: [],
+			unmappedNodes: []
+		};
+		
 		debugTracker.addLog("info", `Conversion completed: ${n8nWorkflow.nodes.length} nodes created`);
 		
 		// Add "Conversion complete" log message
@@ -405,14 +434,23 @@ export async function makeToN8n(
 		return {
 			convertedWorkflow: n8nWorkflow,
 			logs: debugTracker.getGeneralLogs(),
-			parametersNeedingReview: Object.keys(parametersNeedingReview)
+			paramsNeedingReview: parametersNeedingReview,
+			unmappedNodes: unconvertedModules,
+			debug: debugInfo
 		};
 	} catch (error) {
 		debugTracker.addLog("error", `Conversion failed: ${error instanceof Error ? error.message : String(error)}`);
 		return {
 			convertedWorkflow: {},
 			logs: debugTracker.getGeneralLogs(),
-			parametersNeedingReview: []
+			paramsNeedingReview: [],
+			unmappedNodes: [],
+			debug: {
+				mappedModules: [],
+				unmappedModules: [],
+				mappedNodes: [],
+				unmappedNodes: []
+			}
 		};
 	}
 }
@@ -428,7 +466,7 @@ function convertModuleToNode(module: MakeModule, options: ConversionOptions = {}
 			// Convert module ID to string explicitly to ensure consistent type
 			id: options.preserveIds ? String(module.id) : `${generateNodeId()}`,
 			name: module.name || 'Unnamed Node',
-			type: mapping?.n8nType || `make_${module.type}`,
+			type: mapping?.n8nType || mapMakeModuleToN8nNodeType(module.type),
 			parameters: module.parameters || {},
 			position: getPositionFromModule(module),
 		};

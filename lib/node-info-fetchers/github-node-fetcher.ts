@@ -4,7 +4,13 @@
  * This module fetches node information from the n8n GitHub repository.
  */
 
-import { NodeInfo } from './node-info-store';
+import { NodeInfo as BaseNodeInfo } from '../types/node-info';
+
+// Extended NodeInfo interface with additional properties
+interface NodeInfo extends BaseNodeInfo {
+  nodeName?: string;
+  version?: string;
+}
 
 // GitHub repository details
 const N8N_REPO = 'n8n-io/n8n';
@@ -93,13 +99,16 @@ async function fetchNodeInfo(nodeName: string, basePath: string): Promise<NodeIn
       const nodeJson = await response.json();
       
       return {
-        nodeName: nodeJson.name || nodeName,
+        name: nodeJson.name || nodeName,
+        type: nodeJson.type || 'unknown',
         displayName: nodeJson.displayName || nodeName,
         description: nodeJson.description || '',
         version: nodeJson.version || '1.0',
         properties: nodeJson.properties || [],
         inputs: nodeJson.inputs || [],
-        outputs: nodeJson.outputs || []
+        outputs: nodeJson.outputs || [],
+        nodeName: nodeJson.name || nodeName,
+        directory: nodeName
       };
     }
     
@@ -115,13 +124,16 @@ async function fetchNodeInfo(nodeName: string, basePath: string): Promise<NodeIn
       const descriptionMatch = nodeClass.match(/description\s*=\s*['"]([^'"]+)['"]/);
       
       return {
-        nodeName: nodeName,
+        name: nodeName,
+        type: 'unknown',
         displayName: displayNameMatch ? displayNameMatch[1] : nodeName,
         description: descriptionMatch ? descriptionMatch[1] : '',
         version: '1.0',
         properties: [],
         inputs: [],
-        outputs: []
+        outputs: [],
+        nodeName: nodeName,
+        directory: nodeName
       };
     }
     
@@ -130,4 +142,4 @@ async function fetchNodeInfo(nodeName: string, basePath: string): Promise<NodeIn
     console.warn(`Error fetching node info for ${nodeName}:`, error);
     return null;
   }
-} 
+}

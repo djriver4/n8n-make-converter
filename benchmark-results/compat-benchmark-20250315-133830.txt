@@ -1,0 +1,59 @@
+==== COMPATIBILITY LAYER BENCHMARKS ====
+
+Running benchmark: Legacy to Modern (small - 2 params, 5 logs, no debug)
+Total time: 0.17ms
+Avg time per operation: 0.002ms
+Operations per second: 577617
+
+Running benchmark: Modern to Legacy (small - 2 params, 5 logs, no debug)
+Total time: 0.08ms
+Avg time per operation: 0.001ms
+Operations per second: 1211504
+
+Running benchmark: Legacy to Modern (medium - 10 params, 20 logs, with debug)
+Total time: 0.42ms
+Avg time per operation: 0.004ms
+Operations per second: 239640
+
+Running benchmark: Modern to Legacy (medium - 10 params, 20 logs, with debug)
+Total time: 0.18ms
+Avg time per operation: 0.002ms
+Operations per second: 545828
+
+Running benchmark: Legacy to Modern (large - 50 params, 100 logs, with debug)
+Total time: 1.01ms
+Avg time per operation: 0.010ms
+Operations per second: 99474
+
+Running benchmark: Modern to Legacy (large - 50 params, 100 logs, with debug)
+Total time: 0.59ms
+Avg time per operation: 0.006ms
+Operations per second: 169887
+
+==== COMPARISON WITH LEGACY ADAPTERS ====
+
+Running benchmark: OLD Legacy to Modern (medium - 10 params, 20 logs, with debug)
+Total time: 0.28ms
+Avg time per operation: 0.003ms
+Operations per second: 359175
+
+Running benchmark: OLD Modern to Legacy (medium - 10 params, 20 logs, with debug)
+Total time: 0.16ms
+Avg time per operation: 0.002ms
+Operations per second: 623053
+
+Running benchmark: NEW Legacy to Modern (medium - 10 params, 20 logs, with debug)
+Total time: 0.19ms
+Avg time per operation: 0.002ms
+Operations per second: 530268
+
+Running benchmark: NEW Modern to Legacy (medium - 10 params, 20 logs, with debug)
+Total time: 0.10ms
+Avg time per operation: 0.001ms
+Operations per second: 986836
+=== SUMMARY ===
+Average operations per second:
+Overall average: 534328 ops/sec
+Old adapter average: 491114 ops/sec
+New adapter average: 758552 ops/sec
+Improvement: 54.00%

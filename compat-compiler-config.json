@@ -1,0 +1,19 @@
+{
+  "compilerOptions": {
+    "target": "es2015",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "esModuleInterop": true,
+    "strict": true,
+    "skipLibCheck": true,
+    "downlevelIteration": true,
+    "noEmit": true
+  },
+  "files": [
+    "lib/utils/compatibility-layer.ts",
+    "lib/workflow-converter.ts",
+    "__tests__/unit/compatibility-layer.test.ts",
+    "__tests__/benchmarks/compatibility-layer-benchmark.ts",
+    "__tests__/compatibility-integration-test.ts"
+  ]
+} 

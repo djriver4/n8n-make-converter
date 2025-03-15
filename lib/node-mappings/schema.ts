@@ -64,31 +64,73 @@ export interface CredentialMapping {
 }
 
 /**
- * Node mapping definition between platforms
+ * Structure of a node mapping
  */
 export interface NodeMapping {
-  // Source platform (n8n or Make)
-  source: 'n8n' | 'make';
-  // Source node type
+  /**
+   * Source node type
+   */
   sourceNodeType: string;
-  // Target node type in the destination platform
+  
+  /**
+   * Target node type
+   */
   targetNodeType: string;
-  // Mapping for node parameters
-  parameterMappings: Record<string, ParameterMapping>;
-  // Mapping for input connections
-  inputMappings?: Record<string, string>;
-  // Mapping for output connections
-  outputMappings?: Record<string, string>;
-  // Custom transformation logic for this node type
-  customTransform?: (sourceNode: any, context?: any) => any;
-  // Metadata
+  
+  /**
+   * Parameter paths from source to target
+   */
+  sourceParameterPaths?: Record<string, string[]>;
+  
+  /**
+   * Parameter paths from target to source
+   */
+  targetParameterPaths?: Record<string, string[]>;
+  
+  /**
+   * Parameter mappings for complex transformations
+   */
+  parameterMappings?: ParameterMapping[];
+  
+  /**
+   * Custom transformation function for this node type
+   */
+  customTransform?: string | Function;
+  
+  /**
+   * Name of the mapping
+   */
+  name?: string;
+  
+  /**
+   * Description of the mapping
+   */
+  description?: string;
+  
+  /**
+   * Metadata for the mapping
+   */
   metadata?: {
     displayName?: string;
     description?: string;
-    version?: string;
-    author?: string;
-    tags?: string[];
+    [key: string]: any;
   };
+  
+  // Legacy fields
+  /**
+   * Source of the mapping (deprecated, use sourceNodeType instead)
+   */
+  source?: string;
+  
+  /**
+   * Source path (deprecated, use sourceParameterPaths instead)
+   */
+  sourcePath?: string;
+  
+  /**
+   * Target path (deprecated, use targetParameterPaths instead)
+   */
+  targetPath?: string;
 }
 
 /**

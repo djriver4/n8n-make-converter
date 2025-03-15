@@ -7,7 +7,7 @@ export interface UserMapping {
   sourceType: string
   targetType: string
   direction: "n8nToMake" | "makeToN8n"
-  parameterMap: Record<string, string>
+  parameterMap: Record<string, string> | string
   transformationCode?: string
   createdAt: number
   updatedAt: number
@@ -37,9 +37,22 @@ class UserMappingStore {
 
     return mappings.reduce(
       (acc, mapping) => {
+        // Parse parameter map if it's a string
+        let parameterMap: Record<string, string> = {}
+        if (typeof mapping.parameterMap === 'string') {
+          try {
+            parameterMap = JSON.parse(mapping.parameterMap)
+          } catch (e) {
+            console.error(`Failed to parse parameter map for ${mapping.name}:`, e)
+            parameterMap = {}
+          }
+        } else {
+          parameterMap = mapping.parameterMap
+        }
+
         acc[mapping.sourceType] = {
           type: mapping.targetType,
-          parameterMap: mapping.parameterMap,
+          parameterMap: parameterMap,
           description: mapping.description,
           userDefined: true,
         }

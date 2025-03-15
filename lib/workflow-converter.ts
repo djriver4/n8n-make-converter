@@ -53,6 +53,16 @@ import {
   toWorkflowConversionResult
 } from "./utils/interface-adapters";
 
+// Import the compatibility layer
+import {
+  convertToLegacyResult,
+  convertToModernResult,
+  createErrorConversionResult
+} from "./utils/compatibility-layer";
+
+// Import the performance logger
+import { PerformanceLogger } from "./performance-logger";
+
 // Direction of node mapping conversion
 enum MappingDirection {
   N8N_TO_MAKE = 'n8n_to_make',
@@ -362,40 +372,50 @@ export class WorkflowConverter {
     makeWorkflow: MakeWorkflow,
     options: WorkflowConversionOptions = {}
   ): WorkflowConversionResult {
+    logger.info('Starting Make to n8n workflow conversion');
+    // Create logs array
     const logs: ConversionLog[] = [];
+
+    // Initialize items to track workflow conversion
     const paramsNeedingReview: ParameterReview[] = [];
     const unmappedNodes: string[] = [];
-    const debug: WorkflowDebugInfo = {
+    const debugInfo: WorkflowDebugInfo = {
       mappedModules: [],
       unmappedModules: [],
       mappedNodes: [],
       unmappedNodes: []
     };
 
-    // First validate the input if not skipped
+    // Validate input unless we're skipping validation
     if (!options.skipValidation) {
       const validationResult = validateMakeWorkflow(makeWorkflow);
+      
       if (!validationResult.valid) {
+        const errorMessage = `Invalid Make.com workflow format - ${validationResult.errors ? validationResult.errors.join(", ") : "Unknown error"}`;
+        this.debugTracker.addLog('error', errorMessage);
+        
         logs.push({
           type: "error",
-          message: `Invalid Make.com workflow format - ${validationResult.errors ? validationResult.errors.join(", ") : "Unknown error"}`,
+          message: errorMessage,
           timestamp: new Date().toISOString()
         });
+        
+        logger.error(`Make workflow validation failed: ${errorMessage}`);
+        
         return {
           convertedWorkflow: {
             active: false,
             connections: {},
-            name: "Invalid workflow",
+            name: "",
             nodes: []
           },
           logs,
-          paramsNeedingReview,
-          unmappedNodes,
-          debug
+          paramsNeedingReview: [],
+          unmappedNodes: [],
+          debug: debugInfo
         };
       }
       
-      // Use the validated workflow for further processing
       if (validationResult.workflow) {
         makeWorkflow = validationResult.workflow;
       }
@@ -403,6 +423,9 @@ export class WorkflowConverter {
 
     // If validation is disabled or validation passes, proceed with conversion
     try {
+      logger.info(`Make workflow name: "${makeWorkflow.name || 'Unnamed workflow'}"`);
+      logger.debug(`Make workflow has ${makeWorkflow.flow?.length || 0} modules`);
+      
       // Initialize n8n workflow object
       const n8nWorkflow: N8nWorkflow = {
         active: makeWorkflow.active ?? false,
@@ -415,9 +438,13 @@ export class WorkflowConverter {
       const moduleIdToNodeIdMap: Record<string, string> = {};
 
       // Process each module
-      for (const module of makeWorkflow.modules || []) {
+      const moduleSource = makeWorkflow.flow || makeWorkflow.modules || [];
+      logger.info(`Processing ${moduleSource.length} Make modules`);
+      
+      for (const module of moduleSource) {
         try {
           if (!module.type) {
+            logger.warn(`Module ${module.id} is missing a type`);
             logs.push({
               type: "warning",
               message: `Module ${module.id} is missing a type`,
@@ -426,6 +453,8 @@ export class WorkflowConverter {
             continue;
           }
 
+          logger.debug(`Converting module ${String(module.id)} of type ${module.type}`);
+          
           const nodeMapper = new NodeMapper();
           const mapResult = nodeMapper.getMappedNode(
             module.type,
@@ -433,60 +462,118 @@ export class WorkflowConverter {
           );
 
           if (mapResult.isValid && mapResult.mappedType) {
+            logger.debug(`Found mapping for module type ${module.type} -> ${mapResult.mappedType}`);
             // Create n8n node
             const node = createSafeN8nNode(module, mapResult.mappedType);
             
-            // Add to nodes array
+            // Add the node to the workflow
             n8nWorkflow.nodes.push(node);
-
-            // Store correlation
-            if (isDefined(module.id) && isDefined(node.id)) {
+            
+            // Add to the mapping
+            if (module.id) {
               moduleIdToNodeIdMap[String(module.id)] = node.id;
             }
-
-            debug.mappedModules.push({
+            
+            // Track for debug info
+            debugInfo.mappedModules.push({
               id: module.id,
               type: module.type,
               mappedType: mapResult.mappedType
             });
           } else {
-            // Handle unmapped node
-            addToUnmappedNodes(module.type, unmappedNodes);
-            logs.push({
-              type: "warning",
-              message: `No mapping found for module type "${module.type}"`,
-              timestamp: new Date().toISOString()
-            });
-
-            // Create a placeholder node
-            const placeholderNode = createPlaceholderNode(module);
-            n8nWorkflow.nodes.push(placeholderNode);
-
-            // Store correlation
-            if (isDefined(module.id) && isDefined(placeholderNode.id)) {
-              moduleIdToNodeIdMap[String(module.id)] = placeholderNode.id;
+            // Try to use the node mapper directly for conversion
+            try {
+              logger.debug(`Using NodeMapper to convert module ${module.id}`);
+              const conversionResult = nodeMapper.convertMakeModuleToN8nNode(module);
+              const n8nNode = conversionResult.node as N8nNode;
+              
+              // Add the node to the workflow
+              n8nWorkflow.nodes.push(n8nNode);
+              
+              // Add to the mapping
+              if (module.id) {
+                moduleIdToNodeIdMap[String(module.id)] = n8nNode.id;
+              }
+              
+              // Log the success
+              logger.info(`Successfully converted module ${String(module.id)} to ${n8nNode.type}`);
+              
+              // If it's a special fallback conversion, track it for review
+              if (conversionResult.debug?.usedFallback) {
+                paramsNeedingReview.push({
+                  nodeId: n8nNode.id,
+                  parameters: ['all'],
+                  reason: `Used fallback conversion for module type "${module.type}"`
+                });
+                
+                logs.push({
+                  type: "info",
+                  message: `Used fallback conversion for module type "${module.type}"`,
+                  timestamp: new Date().toISOString()
+                });
+              }
+              
+              // Track for debug info
+              debugInfo.mappedModules.push({
+                id: module.id,
+                type: module.type,
+                mappedType: n8nNode.type
+              });
+            } catch (error) {
+              logger.error(`Failed to convert module ${String(module.id)}: ${error}`);
+              
+              // Track unmapped node
+              unmappedNodes.push(module.type || 'unknown');
+              
+              // Create a placeholder node
+              const placeholderNode: N8nNode = {
+                id: module.id ? String(module.id) : generateNodeId(),
+                name: module.name || `Unconverted Module ${String(module.id || '')}`,
+                type: 'n8n-nodes-base.noOp',
+                parameters: {
+                  originalType: module.type,
+                  displayName: `Placeholder for ${module.name || module.type}`
+                },
+                position: [0, 0]
+              };
+              
+              // Add the placeholder to the workflow
+              n8nWorkflow.nodes.push(placeholderNode);
+              
+              // Add to the mapping
+              if (module.id) {
+                moduleIdToNodeIdMap[String(module.id)] = placeholderNode.id;
+              }
+              
+              // Track for debug info
+              debugInfo.unmappedModules.push({
+                id: module.id,
+                type: module.type
+              });
+              
+              // Parameter needs review
+              paramsNeedingReview.push({
+                nodeId: placeholderNode.id,
+                parameters: ['all'],
+                reason: `No mapping found for module type "${module.type}"`
+              });
+              
+              // Log warning for unmapped node
+              logs.push({
+                type: "warning",
+                message: `No mapping found for module type "${module.type}"`,
+                timestamp: new Date().toISOString()
+              });
             }
-
-            paramsNeedingReview.push({
-              nodeId: placeholderNode.id,
-              parameters: ["all"],
-              reason: `No mapping found for module type "${module.type}"`
-            });
           }
-        } catch (err) {
-          if (err instanceof NodeMappingError) {
-            logs.push({
-              type: "warning",
-              message: `Warning: ${err.message}`,
-              timestamp: new Date().toISOString()
-            });
-          } else {
-            logs.push({
-              type: "error",
-              message: `Error processing module ${module.id}: ${err}`,
-              timestamp: new Date().toISOString()
-            });
-          }
+        } catch (error) {
+          logger.error(`Error processing module ${String(module.id)}: ${error}`);
+          
+          logs.push({
+            type: "error",
+            message: `Error processing module ${String(module.id)}: ${error}`,
+            timestamp: new Date().toISOString()
+          });
         }
       }
 
@@ -541,30 +628,42 @@ export class WorkflowConverter {
         }
       }
 
+      // Add "Conversion complete" log message
+      logs.push({
+        type: "info",
+        message: "Conversion complete",
+        timestamp: new Date().toISOString()
+      });
+      
+      logger.info(`Conversion completed with ${n8nWorkflow.nodes.length} nodes created and ${unmappedNodes.length} unmapped nodes`);
+
       return {
         convertedWorkflow: n8nWorkflow,
         logs,
         paramsNeedingReview,
         unmappedNodes,
-        debug
+        debug: debugInfo
       };
-    } catch (err) {
+    } catch (error) {
+      logger.error(`Conversion failed: ${error}`);
+      
       logs.push({
         type: "error",
-        message: `Error during conversion: ${err}`,
+        message: `Conversion failed: ${error}`,
         timestamp: new Date().toISOString()
       });
+
       return {
         convertedWorkflow: {
           active: false,
           connections: {},
-          name: "Error during conversion",
+          name: "",
           nodes: []
         },
         logs,
-        paramsNeedingReview,
-        unmappedNodes,
-        debug
+        paramsNeedingReview: [],
+        unmappedNodes: [],
+        debug: debugInfo
       };
     }
   }
@@ -727,72 +826,41 @@ export function getWorkflowConverter(): WorkflowConverter {
  * 
  * @param n8nWorkflow - The n8n workflow to convert
  * @param options - Conversion options
- * @returns Conversion result
+ * @returns Conversion result in legacy format for backward compatibility
  */
 export function convertN8nToMake(
   n8nWorkflow: N8nWorkflow,
   options: ConversionOptions = {}
 ): ConversionResult {
-  const converter = getWorkflowConverter();
+  const performanceLogger = PerformanceLogger.getInstance();
   
-  try {
-    // Call the internal implementation
-    const result = converter.convertN8nToMake(n8nWorkflow, options);
-    
-    // Create a properly formatted ConversionResult using string params from ParameterReview objects
-    const formattedParamReviews: string[] = [];
-    
-    // Safely access and process parameter reviews
-    const paramReviews = (result as any).paramsNeedingReview;
-    if (Array.isArray(paramReviews)) {
-      for (const param of paramReviews) {
-        if (param && typeof param === 'object' && 'nodeId' in param && 'parameters' in param && 'reason' in param) {
-          formattedParamReviews.push(`${param.nodeId} - ${param.parameters.join(', ')}: ${param.reason}`);
-        }
+  return performanceLogger.trackOperation(
+    'convertN8nToMake',
+    () => {
+      const converter = getWorkflowConverter();
+      
+      try {
+        // Call the internal implementation with performance tracking
+        const result = performanceLogger.trackOperation(
+          'internalConvertN8nToMake',
+          () => converter.convertN8nToMake(n8nWorkflow, options),
+          'conversion'
+        );
+        
+        // Use the compatibility layer - with type assertion to work around type mismatch
+        return performanceLogger.trackOperation(
+          'convertToLegacyResult',
+          () => convertToLegacyResult(result as any),
+          'conversion'
+        );
+      } catch (error: any) {
+        // Handle errors using the compatibility layer
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        return createErrorConversionResult(`Error converting workflow: ${errorMessage}`);
       }
-    }
-    
-    // Check for validation errors in the logs
-    const hasValidationErrors = result.logs.some((log: any) => {
-      // Only process string logs
-      if (typeof log === 'string') {
-        return log.includes('Invalid');
-      } 
-      // For object logs, check the message property
-      else if (log && typeof log === 'object' && typeof log.message === 'string') {
-        return log.message.includes('Invalid');
-      }
-      return false;
-    });
-    
-    // Return a properly formatted ConversionResult
-    return {
-      convertedWorkflow: result.convertedWorkflow,
-      logs: result.logs.map(log => typeof log === 'string' 
-        ? { type: 'info', message: log, timestamp: new Date().toISOString() } as ConversionLog
-        : log as unknown as ConversionLog
-      ),
-      parametersNeedingReview: formattedParamReviews,
-      unmappedNodes: result.unmappedNodes || [],
-      isValidInput: !hasValidationErrors,
-      debug: options.debug ? result.debug : undefined
-    };
-  } catch (error: any) {
-    // Handle errors and return a minimal result
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    return {
-      convertedWorkflow: { 
-        name: "Error", 
-        modules: [], 
-        routes: [],
-        active: false
-      } as MakeWorkflow,
-      logs: [{ type: 'error', message: `Error converting workflow: ${errorMessage}`, timestamp: new Date().toISOString() }],
-      parametersNeedingReview: [],
-      unmappedNodes: [],
-      isValidInput: false
-    };
-  }
+    },
+    'publicAPI'
+  );
 }
 
 /**
@@ -800,108 +868,90 @@ export function convertN8nToMake(
  * 
  * @param makeWorkflow - The Make.com workflow to convert
  * @param options - Conversion options
- * @returns Conversion result
+ * @returns Conversion result in legacy format for backward compatibility
  */
 export function convertMakeToN8n(
   makeWorkflow: MakeWorkflow,
   options: ConversionOptions = {}
 ): ConversionResult {
-  // First validate the input if not skipped
-  if (!options.skipValidation) {
-    try {
-      const validationResult = validateMakeWorkflow(makeWorkflow);
-      if (!validationResult.valid) {
-        // Return an invalid result with the specific error message the tests expect
-        return {
-          convertedWorkflow: { 
-            name: "Invalid workflow", 
-            nodes: [], 
-            connections: {},
-            active: false
-          } as N8nWorkflow,
-          logs: [{ 
-            type: 'error', 
-            message: 'Invalid Make.com workflow format', 
-            timestamp: new Date().toISOString() 
-          }],
-          parametersNeedingReview: [],
-          unmappedNodes: [],
-          isValidInput: false
-        };
-      }
-      
-      // Use the validated workflow for further processing
-      if (validationResult.workflow) {
-        makeWorkflow = validationResult.workflow;
-      }
-    } catch (error) {
-      // Handle validation errors
-      return {
-        convertedWorkflow: { 
-          name: "Invalid workflow", 
-          nodes: [], 
-          connections: {},
-          active: false
-        } as N8nWorkflow,
-        logs: [{ 
-          type: 'error', 
-          message: `Error validating workflow: ${error instanceof Error ? error.message : String(error)}`, 
-          timestamp: new Date().toISOString() 
-        }],
-        parametersNeedingReview: [],
-        unmappedNodes: [],
-        isValidInput: false
-      };
-    }
-  }
+  const performanceLogger = PerformanceLogger.getInstance();
   
-  const converter = getWorkflowConverter();
-  
-  try {
-    // Call the internal implementation
-    const result = converter.convertMakeToN8n(makeWorkflow, options);
-    
-    // Create a properly formatted ConversionResult using string params from ParameterReview objects
-    const formattedParamReviews: string[] = [];
-    
-    // Safely access and process parameter reviews
-    const paramReviews = (result as any).paramsNeedingReview;
-    if (Array.isArray(paramReviews)) {
-      for (const param of paramReviews) {
-        if (param && typeof param === 'object' && 'nodeId' in param && 'parameters' in param && 'reason' in param) {
-          formattedParamReviews.push(`${param.nodeId} - ${param.parameters.join(', ')}: ${param.reason}`);
+  return performanceLogger.trackOperation(
+    'convertMakeToN8n',
+    () => {
+      // First validate the input if not skipped
+      if (!options.skipValidation) {
+        try {
+          const validationResult = validateMakeWorkflow(makeWorkflow);
+          if (!validationResult.valid) {
+            // Return an invalid result with the specific error message the tests expect
+            return {
+              convertedWorkflow: { 
+                name: "Invalid workflow", 
+                nodes: [], 
+                connections: {},
+                active: false
+              } as N8nWorkflow,
+              logs: [{ 
+                type: 'error', 
+                message: 'Invalid Make.com workflow format', 
+                timestamp: new Date().toISOString() 
+              }],
+              parametersNeedingReview: [],
+              unmappedNodes: [],
+              isValidInput: false
+            };
+          }
+          
+          // Use the validated workflow for further processing
+          if (validationResult.workflow) {
+            makeWorkflow = validationResult.workflow;
+          }
+        } catch (error) {
+          // Handle validation errors
+          return {
+            convertedWorkflow: { 
+              name: "Invalid workflow", 
+              nodes: [], 
+              connections: {},
+              active: false
+            } as N8nWorkflow,
+            logs: [{ 
+              type: 'error', 
+              message: `Error validating workflow: ${error instanceof Error ? error.message : String(error)}`, 
+              timestamp: new Date().toISOString() 
+            }],
+            parametersNeedingReview: [],
+            unmappedNodes: [],
+            isValidInput: false
+          };
         }
       }
-    }
-    
-    // Return a properly formatted ConversionResult
-    return {
-      convertedWorkflow: result.convertedWorkflow,
-      logs: result.logs.map(log => typeof log === 'string' 
-        ? { type: 'info', message: log, timestamp: new Date().toISOString() } as ConversionLog
-        : log as unknown as ConversionLog
-      ),
-      parametersNeedingReview: formattedParamReviews,
-      unmappedNodes: result.unmappedNodes || [],
-      isValidInput: true,
-      debug: options.debug ? result.debug : undefined
-    };
-  } catch (error: any) {
-    // Handle errors and return a minimal result
-    const errorMessage = error instanceof Error ? error.message : String(error);
-    return {
-      convertedWorkflow: { 
-        name: "Error", 
-        nodes: [], 
-        connections: {},
-        active: false
-      } as N8nWorkflow,
-      logs: [{ type: 'error', message: `Error converting workflow: ${errorMessage}`, timestamp: new Date().toISOString() }],
-      parametersNeedingReview: [],
-      unmappedNodes: [],
-      isValidInput: false
-    };
-  }
+      
+      const converter = getWorkflowConverter();
+      
+      try {
+        // Call the internal implementation with performance tracking
+        const result = performanceLogger.trackOperation(
+          'internalConvertMakeToN8n',
+          () => converter.convertMakeToN8n(makeWorkflow, options),
+          'conversion'
+        );
+        
+        // Use the compatibility layer - with type assertion to work around type mismatch
+        return performanceLogger.trackOperation(
+          'convertToLegacyResult',
+          () => convertToLegacyResult(result as any),
+          'conversion'
+        );
+      } catch (error: any) {
+        // Handle errors using the compatibility layer
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        return createErrorConversionResult(`Error converting workflow: ${errorMessage}`);
+      }
+    },
+    'publicAPI'
+  );
 }
 
 /**

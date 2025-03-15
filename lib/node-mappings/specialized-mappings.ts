@@ -5,10 +5,34 @@
  * during the conversion process between n8n and Make.com.
  */
 
-import { NodeMapping } from './node-mapping';
+import { NodeMapping as BaseNodeMapping, ParameterMapping } from './schema';
 import { MakeModule, N8nNode, ParameterValue } from './node-types';
 import { ExpressionContext } from '../expression-evaluator';
 import { NodeParameterProcessor } from '../converters/parameter-processor';
+
+/**
+ * Extended NodeMapping interface that uses arrays for parameterMappings
+ * This is specific to the specialized mappings implementation
+ */
+interface NodeMapping extends Omit<BaseNodeMapping, 'parameterMappings' | 'source' | 'sourceNodeType' | 'targetNodeType' | 'customTransform'> {
+  // Base properties made optional
+  source?: 'n8n' | 'make';
+  sourceNodeType?: string;
+  targetNodeType?: string;
+  
+  // Custom transform function with required context
+  customTransform?: (sourceNode: N8nNode, context: ExpressionContext) => Partial<MakeModule>;
+  
+  // Additional properties for specialized mappings
+  parameterMappings: ParameterMapping[];
+  n8nNodeType?: string;
+  makeModuleType?: string;
+  displayName?: string;
+  description?: string;
+  category?: string;
+  version?: string;
+  icon?: string;
+}
 
 /**
  * Collection of specialized node mappings

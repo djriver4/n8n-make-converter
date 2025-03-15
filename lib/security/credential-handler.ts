@@ -18,8 +18,8 @@ export function sanitizeCredentials(workflowJson: any): any {
           if (typeof value === "object" && value !== null) {
             // Keep the structure but mask any potential secrets
             sanitizedCredentials[key] = {
-              id: value.id || "[CREDENTIAL_ID]",
-              name: value.name || "[CREDENTIAL_NAME]",
+              id: (value as { id?: string }).id || "[CREDENTIAL_ID]",
+              name: (value as { name?: string }).name || "[CREDENTIAL_NAME]",
             }
           } else {
             sanitizedCredentials[key] = "[CREDENTIAL_VALUE]"

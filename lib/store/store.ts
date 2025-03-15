@@ -235,7 +235,12 @@ export const useWorkflowStore = create<WorkflowState>()(
             throw new Error("Conversion failed: No converted workflow returned")
           }
 
-          const { convertedWorkflow, logs, debugData, parameterReviewData } = result
+          // Extract the properties that exist in the interface
+          const { convertedWorkflow, logs } = result
+          
+          // Use type assertion for accessing optional properties
+          const debugData = (result as any).debugData || null
+          const parameterReviewData = (result as any).parameterReviewData || {}
 
           // Format the result
           const formattedJson = JSON.stringify(convertedWorkflow, null, 2)

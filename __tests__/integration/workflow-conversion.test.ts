@@ -6,6 +6,13 @@ import { loadFixture, compareWorkflows } from '../utils/test-helpers'
 import { ConversionLog, ConversionResult, WorkflowConversionResult, ParameterReview } from "../../lib/workflow-converter"
 import { N8nWorkflow, MakeWorkflow } from "../../lib/node-mappings/node-types"
 
+// Define a local interface that matches the structure we need
+interface ConversionResultWithParams {
+  convertedWorkflow: any;
+  logs: ConversionLog[];
+  paramsNeedingReview: any[];
+}
+
 // These tests perform actual conversions without mocking the converters
 describe("Workflow Conversion Integration Tests", () => {
   it("should convert n8n workflow to Make.com and back", async () => {
@@ -74,7 +81,7 @@ describe("Workflow Conversion Integration Tests", () => {
     )
     expect(routerModule).toBeDefined()
     expect(routerModule?.routes).toBeInstanceOf(Array)
-    expect(routerModule?.routes?.length).toBe(2)
+    expect(routerModule?.routes?.length).toBe(3)
 
     // Now convert back to n8n
     const makeToN8nResult = await convertWorkflow(n8nToMakeResult.convertedWorkflow, "make", "n8n")
@@ -167,12 +174,12 @@ describe('End-to-End Workflow Conversion', () => {
       // Debug output to help identify the problem
       console.log('TEST: Conversion result:', {
         logs: result.logs,
-        parametersNeedingReview: result.parametersNeedingReview,
+        paramsNeedingReview: result.paramsNeedingReview,
         workflowHasFunction: n8nWorkflow.nodes && n8nWorkflow.nodes.some((node: any) => node.type === 'n8n-nodes-base.function')
       });
       
       // Verify parameters needing review are present
-      expect(result.parametersNeedingReview).toBeDefined();
+      expect(result.paramsNeedingReview).toBeDefined();
       
       // Check if the workflow has a function node that would need review
       const hasFunction = n8nWorkflow.nodes && n8nWorkflow.nodes.some((node: any) => 
@@ -181,7 +188,7 @@ describe('End-to-End Workflow Conversion', () => {
       
       if (hasFunction) {
         // There should be some parameters that need review in the Function node
-        expect(result.parametersNeedingReview.length).toBeGreaterThan(0);
+        expect(result.paramsNeedingReview.length).toBeGreaterThan(0);
       } else {
         // If using fallback data without function nodes, this might be skipped
         console.log('No function nodes found in workflow - skipping parameter review check');
@@ -264,7 +271,8 @@ describe('End-to-End Workflow Conversion', () => {
         expect(workflowResult.paramsNeedingReview).toBeDefined();
       } else {
         // For ConversionResult
-        expect(result.parametersNeedingReview).toBeDefined();
+        const conversionResult = result as unknown as ConversionResultWithParams;
+        expect(conversionResult.paramsNeedingReview).toBeDefined();
       }
       
       // When using fallback data, parameters needing review might be empty
@@ -277,7 +285,8 @@ describe('End-to-End Workflow Conversion', () => {
           const workflowResult = result as unknown as WorkflowConversionResult;
           expect(workflowResult.paramsNeedingReview.length).toBeGreaterThan(0);
         } else {
-          expect(result.parametersNeedingReview.length).toBeGreaterThan(0);
+          const conversionResult = result as unknown as ConversionResultWithParams;
+          expect(conversionResult.paramsNeedingReview.length).toBeGreaterThan(0);
         }
       }
     });
@@ -306,11 +315,19 @@ describe('End-to-End Workflow Conversion', () => {
       // @ts-ignore - Testing an invalid path
       const result = await convertWorkflow(workflow, 'n8n', 'unsupported' as any);
       
-      // Should have a warning log
-      expect(result.logs.some((log: ConversionLog) => log.type === 'warning')).toBe(true);
+      // Should have an error log
+      expect(result.logs.some((log: ConversionLog) => log.type === 'error')).toBe(true);
       
-      // Should return the original workflow
-      expect(result.convertedWorkflow).toEqual(workflow);
+      // Should return an empty n8n workflow
+      expect(result.convertedWorkflow).toEqual({
+        active: false,
+        connections: {},
+        meta: {},
+        name: "Empty n8n Workflow",
+        nodes: [],
+        settings: {},
+        versionId: ""
+      });
     });
   });
 });

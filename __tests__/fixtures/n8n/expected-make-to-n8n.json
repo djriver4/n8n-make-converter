@@ -1,4 +1,6 @@
 {
+  "name": "Default n8n Test Workflow",
+  "active": true,
   "nodes": [
     {
       "id": "1",

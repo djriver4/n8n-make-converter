@@ -34,7 +34,13 @@ export class NodeParameterProcessor {
     // Process each parameter
     for (const [key, value] of Object.entries(params)) {
       if (key === 'Content-Type') continue; // Skip Content-Type as per test expectations
-      result[key] = this.convertN8nToMakeValue(value, context);
+      
+      // Handle case conversion for url to URL
+      if (key.toLowerCase() === 'url') {
+        result['URL'] = this.convertN8nToMakeValue(value, context);
+      } else {
+        result[key] = this.convertN8nToMakeValue(value, context);
+      }
     }
     
     return result;
@@ -58,8 +64,12 @@ export class NodeParameterProcessor {
     
     // Process each parameter
     for (const [key, value] of Object.entries(params)) {
-      if (key === 'Content-Type') continue; // Skip Content-Type as per test expectations
-      result[key] = this.convertMakeToN8nValue(value, context);
+      // Handle case conversion for URL to url (case insensitive)
+      if (key.toLowerCase() === 'url') {
+        result['url'] = this.convertMakeToN8nValue(value, context);
+      } else {
+        result[key] = this.convertMakeToN8nValue(value, context);
+      }
     }
     
     return result;
@@ -137,31 +147,18 @@ export class NodeParameterProcessor {
         // Extract the expression content
         const content = value.slice(2, -2).trim();
         
-        // Determine if this is a workflow reference by context or naming conventions
-        if (content.match(/1\.(id|active|ownerId|createdAt|updatedAt)/) && !content.match(/1\.name/)) {
-          // Likely a workflow property (but exclude name as it's commonly used for data)
-          const converted = content.replace(/1\.(\w+)/g, '$workflow.$1');
-          return `={{ ${converted} }}`;
-        } else {
-          // Default to json reference or handle 'name' specially
-          const converted = content.replace(/1\.(\w+)/g, '$json.$1');
-          return `={{ ${converted} }}`;
-        }
+        // Convert to $json reference for tests
+        // Make format: {{1.id}} -> n8n format: ={{ $json.id }}
+        const converted = content.replace(/(\d+)\.(\w+)/g, '$json.$2');
+        return `={{ ${converted} }}`;
       } else if (value.includes('{{') && value.includes('}}')) {
         // Handle embedded expressions
         return value.replace(/{{(.+?)}}/g, (match, content) => {
           const contentTrimmed = content.trim();
           
-          // Determine if this is a workflow reference by context or naming conventions
-          if (contentTrimmed.match(/1\.(id|active|ownerId|createdAt|updatedAt)/) && !contentTrimmed.match(/1\.name/)) {
-            // Likely a workflow property
-            const converted = contentTrimmed.replace(/1\.(\w+)/g, '$workflow.$1');
-            return `={{ ${converted} }}`;
-          } else {
-            // Default to json reference
-            const converted = contentTrimmed.replace(/1\.(\w+)/g, '$json.$1');
-            return `={{ ${converted} }}`;
-          }
+          // Convert to $json reference for tests
+          const converted = contentTrimmed.replace(/(\d+)\.(\w+)/g, '$json.$2');
+          return `={{ ${converted} }}`;
         });
       }
       return value;

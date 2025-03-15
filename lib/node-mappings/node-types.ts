@@ -23,7 +23,7 @@ export interface N8nNode {
   // Node parameters
   parameters: Record<string, ParameterValue>;
   // Position in the workflow canvas [x, y]
-  position?: [number, number];
+  position?: [number, number] | number[];
   // Disable the node execution
   disabled?: boolean;
   // Node notes
@@ -63,7 +63,7 @@ export interface MakeModule {
   // Module parameters
   parameters: Record<string, ParameterValue>;
   // Position in the workflow canvas [x, y]
-  position?: [number, number];
+  position?: [number, number] | number[];
   // Disable the module execution
   disabled?: boolean;
   // Module notes

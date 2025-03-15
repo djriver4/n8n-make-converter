@@ -43,7 +43,7 @@ interface ConversionResult {
     type: "info" | "warning" | "error"
     message: string
   }>
-  parametersNeedingReview: string[]
+  paramsNeedingReview: string[]
 }
 
 /**
@@ -127,7 +127,7 @@ export async function n8nToMake(
       return {
         convertedWorkflow: emptyWorkflow,
         logs: debugTracker.getGeneralLogs(),
-        parametersNeedingReview: []
+        paramsNeedingReview: []
       }
     }
 
@@ -180,7 +180,7 @@ export async function n8nToMake(
             return {
               convertedWorkflow: {},
               logs: debugTracker.getGeneralLogs(),
-              parametersNeedingReview: []
+              paramsNeedingReview: []
             }
           }
           
@@ -340,14 +340,14 @@ export async function n8nToMake(
     return {
       convertedWorkflow: makeWorkflow,
       logs: debugTracker.getGeneralLogs(),
-      parametersNeedingReview
+      paramsNeedingReview: parametersNeedingReview
     }
   } catch (error) {
     debugTracker.addLog("error", `Conversion failed: ${error instanceof Error ? error.message : String(error)}`)
     return {
       convertedWorkflow: {},
       logs: debugTracker.getGeneralLogs(),
-      parametersNeedingReview: []
+      paramsNeedingReview: []
     }
   }
 }

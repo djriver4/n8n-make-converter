@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, type ReactNode } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,12 +15,21 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/components/ui/use-toast"
-import { UserMapping, NewMappingData, MappingDirection } from "@/lib/types/custom-mappings"
+import { MappingDirection } from "@/lib/types/custom-mappings"
 
 // Import UserMappingStore
-const UserMappingStore = typeof window !== 'undefined' 
-  ? require("@/lib/user-mappings/user-mapping-store").default 
-  : null;
+import UserMappingStoreModule from "@/lib/user-mappings/user-mapping-store"
+import type { UserMapping as LibUserMapping } from "@/lib/user-mappings/user-mapping-store"
+
+// Define a type for the component that matches the interface from the store
+type UserMapping = LibUserMapping;
+type NewMappingData = Omit<UserMapping, "id" | "createdAt" | "updatedAt">;
+
+// Add a parameterMap parser type helper
+type ParsedParameterMap = Record<string, string>;
+
+// Client-side only code
+const UserMappingStore = typeof window !== 'undefined' ? UserMappingStoreModule : null;
 
 export function CustomMappingsManager() {
   const { toast } = useToast()
@@ -49,7 +58,7 @@ export function CustomMappingsManager() {
 
   // Load mappings from store on component mount
   useEffect(() => {
-    if (UserMappingStore) {
+    if (typeof window !== 'undefined') {
       loadMappings()
     }
   }, [])
@@ -58,8 +67,10 @@ export function CustomMappingsManager() {
   const loadMappings = () => {
     setIsLoading(true)
     try {
-      const userMappings = UserMappingStore.getMappings()
-      setMappings(userMappings)
+      if (typeof window !== 'undefined' && UserMappingStoreModule) {
+        const userMappings = UserMappingStoreModule.getMappings()
+        setMappings(userMappings)
+      }
     } catch (error) {
       console.error("Failed to load mappings:", error)
       toast({
@@ -88,44 +99,46 @@ export function CustomMappingsManager() {
       }
 
       // Parse parameter map if it's a string
-      let parameterMap = newMapping.parameterMap
-      if (typeof parameterMap === 'string') {
+      let parameterMap: ParsedParameterMap = {}
+      if (typeof newMapping.parameterMap === 'string') {
         try {
-          parameterMap = JSON.parse(parameterMap)
+          parameterMap = JSON.parse(newMapping.parameterMap) as ParsedParameterMap
         } catch (e) {
           throw new Error("Parameter map must be valid JSON")
         }
+      } else {
+        parameterMap = newMapping.parameterMap
       }
 
       // Create mapping with UserMappingStore
-      const mappingToCreate = {
-        ...newMapping,
-        parameterMap,
-        createdAt: Date.now(),
-        updatedAt: Date.now()
+      if (typeof window !== 'undefined' && UserMappingStoreModule) {
+        const mappingToCreate = {
+          ...newMapping,
+          parameterMap,
+        }
+        
+        UserMappingStoreModule.saveMapping(mappingToCreate)
+        
+        // Refresh mappings
+        loadMappings()
+        
+        // Reset form
+        setNewMapping({
+          name: "",
+          description: "",
+          sourceType: "",
+          targetType: "",
+          direction: "n8nToMake",
+          parameterMap: {},
+          transformationCode: ""
+        })
+        
+        // Show success toast
+        toast({
+          title: "Mapping created",
+          description: `Mapping "${mappingToCreate.name}" has been created successfully.`,
+        })
       }
-      
-      UserMappingStore.createMapping(mappingToCreate)
-      
-      // Refresh mappings
-      loadMappings()
-      
-      // Reset form
-      setNewMapping({
-        name: "",
-        description: "",
-        sourceType: "",
-        targetType: "",
-        direction: "n8nToMake",
-        parameterMap: {},
-        transformationCode: ""
-      })
-      
-      // Show success toast
-      toast({
-        title: "Mapping created",
-        description: `Mapping "${mappingToCreate.name}" has been created successfully.`,
-      })
     } catch (error) {
       toast({
         title: "Error creating mapping",
@@ -143,35 +156,38 @@ export function CustomMappingsManager() {
       }
       
       // Parse parameter map if it's a string
-      let parameterMap = editingMapping.parameterMap
-      if (typeof parameterMap === 'string') {
+      let parameterMap: ParsedParameterMap = {}
+      if (typeof editingMapping.parameterMap === 'string') {
         try {
-          parameterMap = JSON.parse(parameterMap)
+          parameterMap = JSON.parse(editingMapping.parameterMap) as ParsedParameterMap
         } catch (e) {
           throw new Error("Parameter map must be valid JSON")
         }
+      } else {
+        parameterMap = editingMapping.parameterMap
       }
       
       // Update mapping
-      const mappingToUpdate = {
-        ...editingMapping,
-        parameterMap,
-        updatedAt: Date.now()
+      if (typeof window !== 'undefined' && UserMappingStoreModule) {
+        const mappingToUpdate = {
+          ...editingMapping,
+          parameterMap,
+        }
+        
+        UserMappingStoreModule.updateMapping(editingMapping.id, mappingToUpdate)
+        
+        // Refresh mappings
+        loadMappings()
+        
+        // Clear editing state
+        setEditingMapping(null)
+        
+        // Show success toast
+        toast({
+          title: "Mapping updated",
+          description: `Mapping "${mappingToUpdate.name}" has been updated successfully.`,
+        })
       }
-      
-      UserMappingStore.updateMapping(editingMapping.id, mappingToUpdate)
-      
-      // Refresh mappings
-      loadMappings()
-      
-      // Clear editing state
-      setEditingMapping(null)
-      
-      // Show success toast
-      toast({
-        title: "Mapping updated",
-        description: `Mapping "${mappingToUpdate.name}" has been updated successfully.`,
-      })
     } catch (error) {
       toast({
         title: "Error updating mapping",
@@ -191,16 +207,18 @@ export function CustomMappingsManager() {
       }
       
       // Delete mapping
-      UserMappingStore.deleteMapping(id)
-      
-      // Refresh mappings
-      loadMappings()
-      
-      // Show success toast
-      toast({
-        title: "Mapping deleted",
-        description: `Mapping "${mapping.name}" has been deleted.`,
-      })
+      if (typeof window !== 'undefined' && UserMappingStoreModule) {
+        UserMappingStoreModule.deleteMapping(id)
+        
+        // Refresh mappings
+        loadMappings()
+        
+        // Show success toast
+        toast({
+          title: "Mapping deleted",
+          description: `Mapping "${mapping.name}" has been deleted.`,
+        })
+      }
     } catch (error) {
       toast({
         title: "Error deleting mapping",
@@ -213,29 +231,31 @@ export function CustomMappingsManager() {
   // Handle exporting mappings
   const handleExportMappings = () => {
     try {
-      const exportData = UserMappingStore.exportMappings()
-      
-      // Create a Blob with the data
-      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: "application/json" })
-      
-      // Create a download link
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement("a")
-      a.href = url
-      a.download = `custom-mappings-${new Date().toISOString().split("T")[0]}.json`
-      document.body.appendChild(a)
-      a.click()
-      
-      // Clean up
-      setTimeout(() => {
-        document.body.removeChild(a)
-        URL.revokeObjectURL(url)
-      }, 0)
-      
-      toast({
-        title: "Mappings exported",
-        description: `${exportData.length} mappings have been exported.`,
-      })
+      if (typeof window !== 'undefined' && UserMappingStoreModule) {
+        const exportData = UserMappingStoreModule.exportMappings()
+        
+        // Create a Blob with the data
+        const blob = new Blob([exportData], { type: "application/json" })
+        
+        // Create a download link
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement("a")
+        a.href = url
+        a.download = `custom-mappings-${new Date().toISOString().split("T")[0]}.json`
+        document.body.appendChild(a)
+        a.click()
+        
+        // Clean up
+        setTimeout(() => {
+          document.body.removeChild(a)
+          URL.revokeObjectURL(url)
+        }, 0)
+        
+        toast({
+          title: "Mappings exported",
+          description: `${JSON.parse(exportData).length} mappings have been exported.`,
+        })
+      }
     } catch (error) {
       toast({
         title: "Error exporting mappings",
@@ -250,48 +270,50 @@ export function CustomMappingsManager() {
     try {
       setImportError("")
       
-      // Parse the import data
-      let data
-      try {
-        data = JSON.parse(importData)
-      } catch (e) {
-        throw new Error("Invalid JSON format")
+      if (typeof window !== 'undefined' && UserMappingStoreModule) {
+        // Import the mappings
+        const success = UserMappingStoreModule.importMappings(importData)
+        
+        if (!success) {
+          throw new Error("Failed to import mappings")
+        }
+        
+        // Refresh mappings
+        loadMappings()
+        
+        // Close dialog and reset form
+        setImportDialogOpen(false)
+        setImportData("")
+        
+        // Show success toast
+        toast({
+          title: "Mappings imported",
+          description: "Mappings have been imported successfully.",
+        })
       }
-      
-      // Import the mappings
-      const importedCount = UserMappingStore.importMappings(data)
-      
-      // Refresh mappings
-      loadMappings()
-      
-      // Close dialog and reset form
-      setImportDialogOpen(false)
-      setImportData("")
-      
-      // Show success toast
-      toast({
-        title: "Mappings imported",
-        description: `${importedCount} mappings have been imported successfully.`,
-      })
     } catch (error) {
       setImportError(error instanceof Error ? error.message : "Unknown error occurred")
     }
   }
 
   // Render parameter map for display
-  const renderParameterMap = (parameterMap: Record<string, string> | string | undefined) => {
+  const renderParameterMap = (parameterMap: Record<string, string> | string | undefined): ReactNode => {
     if (!parameterMap) return "No parameters"
+    
+    let parsedMap: ParsedParameterMap = {}
     
     if (typeof parameterMap === "string") {
       try {
-        parameterMap = JSON.parse(parameterMap) as Record<string, string>
+        parsedMap = JSON.parse(parameterMap) as ParsedParameterMap
       } catch (e) {
-        return parameterMap
+        return <span>{parameterMap}</span>
       }
+    } else {
+      parsedMap = parameterMap
     }
     
     // Display as key-value pairs
-    return Object.entries(parameterMap).map(([key, value]) => (
+    return Object.entries(parsedMap).map(([key, value]) => (
       <div key={key} className="text-xs">
         <span className="font-semibold">{key}:</span> {value?.toString()}
       </div>

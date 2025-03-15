@@ -1,49 +1,51 @@
 {
-  "name": "Converted from n8n",
+  "name": "Default Make Test Workflow",
   "flow": [
     {
       "id": "a1b2c3",
-      "name": "HTTP Request",
-      "type": "http",
-      "parameters": {
+      "module": "http:ActionSendData",
+      "label": "HTTP Request",
+      "mapper": {
         "url": "https://example.com/api",
-        "method": "GET",
-        "timeout": "5000"
+        "method": "GET"
       },
-      "metadata": {
-        "designer": {
-          "x": 100,
-          "y": 200
-        }
-      }
+      "parameters": {}
     },
     {
       "id": "d4e5f6",
-      "name": "JSON Parse",
-      "type": "json",
-      "parameters": {
+      "module": "json",
+      "label": "JSON Parse",
+      "mapper": {
         "parsedObject": "{{a1b2c3.data}}"
       },
-      "metadata": {
-        "designer": {
-          "x": 300,
-          "y": 200
-        }
-      }
+      "parameters": {}
     },
     {
       "id": "g7h8i9",
-      "name": "Function",
-      "type": "tools",
-      "parameters": {
+      "module": "tools",
+      "label": "Function",
+      "mapper": {
         "code": "// Code that contains complex expressions\nreturn {\n  result: items[0].data.map(function(item) {\n    return item.value * 2;\n  })\n};"
       },
-      "metadata": {
-        "designer": {
-          "x": 500,
-          "y": 200
-        }
-      }
+      "parameters": {}
     }
-  ]
+  ],
+  "metadata": {
+    "instant": false,
+    "version": 1,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "autoCommitTriggerLast": true,
+      "sequential": false,
+      "confidential": false,
+      "dataloss": false,
+      "dlq": false,
+      "source": "manual"
+    },
+    "designer": {
+      "orphans": []
+    }
+  }
 } 

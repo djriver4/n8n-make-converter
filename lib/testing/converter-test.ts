@@ -1,6 +1,7 @@
 import { n8nToMake } from "../converters/n8n-to-make"
 import { makeToN8n } from "../converters/make-to-n8n"
 import { detectPlatform } from "../platform-detector"
+import { DebugTracker } from "../debug-tracker"
 
 export interface TestResult {
   testName: string
@@ -55,10 +56,10 @@ export class ConverterTester {
       const n8nWorkflow = this.getBasicN8nWorkflow()
 
       // Convert to Make.com
-      const { convertedWorkflow: makeWorkflow } = await n8nToMake(n8nWorkflow)
+      const { convertedWorkflow: makeWorkflow } = await n8nToMake(n8nWorkflow, new DebugTracker())
 
       // Convert back to n8n
-      const { convertedWorkflow: roundTripWorkflow } = await makeToN8n(makeWorkflow)
+      const { convertedWorkflow: roundTripWorkflow } = await makeToN8n(makeWorkflow, new DebugTracker())
 
       // Validate the round-trip workflow
       const isValid = this.validateRoundTripWorkflow(n8nWorkflow, roundTripWorkflow)
@@ -88,18 +89,18 @@ export class ConverterTester {
       const n8nWorkflow = this.getBasicN8nWorkflow()
 
       // Convert to Make.com
-      const { convertedWorkflow, logs } = await n8nToMake(n8nWorkflow)
+      const result = await n8nToMake(n8nWorkflow, new DebugTracker())
 
       // Validate the converted workflow
-      const isValid = this.validateMakeWorkflow(convertedWorkflow)
+      const isValid = this.validateMakeWorkflow(result.convertedWorkflow)
 
       this.testResults.push({
         testName,
         passed: isValid,
         details: {
           original: n8nWorkflow,
-          converted: convertedWorkflow,
-          logs,
+          converted: result.convertedWorkflow,
+          logs: result.logs,
         },
       })
     } catch (error) {
@@ -118,18 +119,18 @@ export class ConverterTester {
       const n8nWorkflow = this.getComplexN8nWorkflow()
 
       // Convert to Make.com
-      const { convertedWorkflow, logs } = await n8nToMake(n8nWorkflow)
+      const result = await n8nToMake(n8nWorkflow, new DebugTracker())
 
       // Validate the converted workflow
-      const isValid = this.validateMakeWorkflow(convertedWorkflow)
+      const isValid = this.validateMakeWorkflow(result.convertedWorkflow)
 
       this.testResults.push({
         testName,
         passed: isValid,
         details: {
           original: n8nWorkflow,
-          converted: convertedWorkflow,
-          logs,
+          converted: result.convertedWorkflow,
+          logs: result.logs,
         },
       })
     } catch (error) {
@@ -148,18 +149,18 @@ export class ConverterTester {
       const makeWorkflow = this.getBasicMakeWorkflow()
 
       // Convert to n8n
-      const { convertedWorkflow, logs } = await makeToN8n(makeWorkflow)
+      const result = await makeToN8n(makeWorkflow, new DebugTracker())
 
       // Validate the converted workflow
-      const isValid = this.validateN8nWorkflow(convertedWorkflow)
+      const isValid = this.validateN8nWorkflow(result.convertedWorkflow)
 
       this.testResults.push({
         testName,
         passed: isValid,
         details: {
           original: makeWorkflow,
-          converted: convertedWorkflow,
-          logs,
+          converted: result.convertedWorkflow,
+          logs: result.logs,
         },
       })
     } catch (error) {
@@ -178,18 +179,18 @@ export class ConverterTester {
       const makeWorkflow = this.getComplexMakeWorkflow()
 
       // Convert to n8n
-      const { convertedWorkflow, logs } = await makeToN8n(makeWorkflow)
+      const result = await makeToN8n(makeWorkflow, new DebugTracker())
 
       // Validate the converted workflow
-      const isValid = this.validateN8nWorkflow(convertedWorkflow)
+      const isValid = this.validateN8nWorkflow(result.convertedWorkflow)
 
       this.testResults.push({
         testName,
         passed: isValid,
         details: {
           original: makeWorkflow,
-          converted: convertedWorkflow,
-          logs,
+          converted: result.convertedWorkflow,
+          logs: result.logs,
         },
       })
     } catch (error) {

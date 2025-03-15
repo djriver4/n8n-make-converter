@@ -142,7 +142,8 @@
       "sequential": false,
       "confidential": false,
       "dataloss": false,
-      "dlq": false
+      "dlq": false,
+      "source": "manual"
     },
     "designer": {
       "orphans": []

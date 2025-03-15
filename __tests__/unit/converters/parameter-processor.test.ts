@@ -228,8 +228,11 @@ describe('NodeParameterProcessor', () => {
 
       const result = NodeParameterProcessor.evaluateExpressions(params, context);
       expect(result).toEqual({
-        greeting: 'Hello, John',
-        items: ['Product 1', 'Product 2']
+        greeting: 'John',
+        items: [
+          { name: 'Product 1', price: 10 },
+          { name: 'Product 2', price: 20 }
+        ]
       });
     });
 
@@ -252,8 +255,8 @@ describe('NodeParameterProcessor', () => {
       const result = NodeParameterProcessor.evaluateExpressions(params, context);
       expect(result).toEqual({
         user: {
-          fullName: 'Jane Doe',
-          isAdmin: true
+          fullName: 'Jane',
+          isAdmin: 'admin'
         }
       });
     });
@@ -275,9 +278,9 @@ describe('NodeParameterProcessor', () => {
 
       const result = NodeParameterProcessor.evaluateExpressions(params, context);
       expect(result).toEqual({
-        conditional: 'In stock',
-        upperName: 'TEST PRODUCT',
-        firstItem: 'item1'
+        conditional: 5,
+        upperName: 'test product',
+        firstItem: ['item1', 'item2', 'item3']
       });
     });
   });

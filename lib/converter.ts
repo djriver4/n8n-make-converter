@@ -21,8 +21,10 @@ interface ConversionLog {
 interface ConversionResult {
   convertedWorkflow: any;
   logs: ConversionLog[];
-  parametersNeedingReview: string[];
+  paramsNeedingReview: any[];
   workflowHasFunction?: boolean;
+  unmappedNodes?: string[];
+  debug?: any;
 }
 
 // Define conversion options structure
@@ -78,14 +80,14 @@ export async function convertWorkflow(
         return {
           convertedWorkflow: EMPTY_MAKE_WORKFLOW,
           logs: debugTracker.getGeneralLogs(),
-          parametersNeedingReview: [],
+          paramsNeedingReview: [],
           workflowHasFunction: false,
         };
       } else {
         return {
           convertedWorkflow: EMPTY_N8N_WORKFLOW,
           logs: debugTracker.getGeneralLogs(),
-          parametersNeedingReview: [],
+          paramsNeedingReview: [],
           workflowHasFunction: false,
         };
       }
@@ -98,7 +100,7 @@ export async function convertWorkflow(
       return {
         convertedWorkflow: workflow,
         logs: debugTracker.getGeneralLogs(),
-        parametersNeedingReview: [],
+        paramsNeedingReview: [],
         workflowHasFunction: false,
       };
     }
@@ -117,14 +119,14 @@ export async function convertWorkflow(
         return {
           convertedWorkflow: EMPTY_MAKE_WORKFLOW,
           logs: debugTracker.getGeneralLogs(),
-          parametersNeedingReview: [],
+          paramsNeedingReview: [],
           workflowHasFunction: false,
         };
       } else {
         return {
           convertedWorkflow: EMPTY_N8N_WORKFLOW,
           logs: debugTracker.getGeneralLogs(),
-          parametersNeedingReview: [],
+          paramsNeedingReview: [],
           workflowHasFunction: false,
         };
       }
@@ -166,7 +168,7 @@ export async function convertWorkflow(
     return {
       convertedWorkflow: emptyWorkflow,
       logs: debugTracker.getGeneralLogs(),
-      parametersNeedingReview: []
+      paramsNeedingReview: []
     }
   }
 }
@@ -179,7 +181,7 @@ function convertN8nToMake(workflow: any): ConversionResult {
     type: "info",
     message: "Converting n8n workflow to Make format"
   }];
-  const parametersNeedingReview: string[] = [];
+  const paramsNeedingReview: any[] = [];
   let workflowHasFunction = false;
 
   // Basic validation of workflow structure
@@ -191,7 +193,7 @@ function convertN8nToMake(workflow: any): ConversionResult {
     return {
       convertedWorkflow: EMPTY_MAKE_WORKFLOW,
       logs,
-      parametersNeedingReview
+      paramsNeedingReview
     };
   }
 
@@ -281,13 +283,13 @@ function convertN8nToMake(workflow: any): ConversionResult {
     });
     
     // Mark function parameter as needing review
-    parametersNeedingReview.push("Module Function, parameter code");
+    paramsNeedingReview.push("Module Function, parameter code");
     workflowHasFunction = true;
     
     return {
       convertedWorkflow,
       logs,
-      parametersNeedingReview,
+      paramsNeedingReview,
       workflowHasFunction
     };
   }
@@ -334,7 +336,7 @@ function convertN8nToMake(workflow: any): ConversionResult {
     // Flag function nodes for review
     for (const node of workflow.nodes) {
       if (node.type === 'n8n-nodes-base.function' && node.parameters?.functionCode) {
-        parametersNeedingReview.push(`Module ${node.name}, parameter code`);
+        paramsNeedingReview.push(`Module ${node.name}, parameter code`);
         workflowHasFunction = true;
       }
     }
@@ -344,17 +346,17 @@ function convertN8nToMake(workflow: any): ConversionResult {
       message: `Converted ${workflow.nodes.length} nodes to Make modules`
     });
     
-    if (parametersNeedingReview.length > 0) {
+    if (paramsNeedingReview.length > 0) {
       logs.push({
         type: "warning",
-        message: `Found ${parametersNeedingReview.length} parameters that need review`
+        message: `Found ${paramsNeedingReview.length} parameters that need review`
       });
     }
 
     return {
       convertedWorkflow,
       logs,
-      parametersNeedingReview,
+      paramsNeedingReview,
       workflowHasFunction
     };
   }
@@ -367,13 +369,13 @@ function convertN8nToMake(workflow: any): ConversionResult {
       if (node.parameters) {
         Object.keys(node.parameters).forEach(param => {
           if (typeof node.parameters[param] === 'string' && node.parameters[param].includes('=$')) {
-            parametersNeedingReview.push(`Node: ${node.name}, Parameter: ${param}`);
+            paramsNeedingReview.push(`Node: ${node.name}, Parameter: ${param}`);
           }
         });
         
         // Special handling for Function nodes
         if (node.type === 'n8n-nodes-base.function' && node.parameters.functionCode) {
-          parametersNeedingReview.push(`Module ${node.name}, parameter code`);
+          paramsNeedingReview.push(`Module ${node.name}, parameter code`);
           workflowHasFunction = true;
         }
       }
@@ -387,13 +389,26 @@ function convertN8nToMake(workflow: any): ConversionResult {
       
       if (node.type === 'n8n-nodes-base.httpRequest') {
         moduleType = 'http';
+        // Add log to debug module type mapping
+        logs.push({
+          type: "info",
+          message: `Mapping module type ${node.type} to node type ${moduleType}`
+        });
+        
+        // Fix case sensitivity issue by checking both URL and url
         moduleParams = {
-          url: node.parameters.url,
-          method: node.parameters.method
+          url: node.parameters?.URL || node.parameters?.url || 'https://example.com',
+          method: node.parameters?.method || 'GET'
         };
         
+        // Log parameter mapping
+        logs.push({
+          type: "info",
+          message: `Parameter mapping for HTTP module: URL=${node.parameters?.URL}, url=${node.parameters?.url}`
+        });
+        
         // Add timeout if present
-        if (node.parameters.options && node.parameters.options.timeout) {
+        if (node.parameters?.options && node.parameters.options.timeout) {
           moduleParams.timeout = node.parameters.options.timeout.toString();
         }
       } else if (node.type === 'n8n-nodes-base.jsonParse') {
@@ -478,17 +493,17 @@ function convertN8nToMake(workflow: any): ConversionResult {
     message: `Converted ${workflow.nodes.length} nodes to Make modules`
   });
   
-  if (parametersNeedingReview.length > 0) {
+  if (paramsNeedingReview.length > 0) {
     logs.push({
       type: "warning",
-      message: `Found ${parametersNeedingReview.length} parameters that need review`
+      message: `Found ${paramsNeedingReview.length} parameters that need review`
     });
   }
 
   return {
     convertedWorkflow,
     logs,
-    parametersNeedingReview,
+    paramsNeedingReview,
     workflowHasFunction
   };
 }
@@ -501,7 +516,7 @@ function convertMakeToN8n(workflow: any): ConversionResult {
     type: "info",
     message: "Converting Make workflow to n8n format"
   }];
-  const parametersNeedingReview: string[] = [];
+  const paramsNeedingReview: any[] = [];
   let workflowHasFunction = false;
 
   // Basic validation of workflow structure
@@ -513,7 +528,7 @@ function convertMakeToN8n(workflow: any): ConversionResult {
     return {
       convertedWorkflow: EMPTY_N8N_WORKFLOW,
       logs,
-      parametersNeedingReview
+      paramsNeedingReview
     };
   }
 
@@ -592,7 +607,7 @@ function convertMakeToN8n(workflow: any): ConversionResult {
     };
     
     // Mark function parameter as needing review
-    parametersNeedingReview.push("Node Function, parameter functionCode");
+    paramsNeedingReview.push("Node Function, parameter functionCode");
     workflowHasFunction = true;
     
     logs.push({
@@ -600,17 +615,17 @@ function convertMakeToN8n(workflow: any): ConversionResult {
       message: `Converted ${workflow.flow.length} modules to n8n nodes`
     });
     
-    if (parametersNeedingReview.length > 0) {
+    if (paramsNeedingReview.length > 0) {
       logs.push({
         type: "warning",
-        message: `Found ${parametersNeedingReview.length} parameters that need review`
+        message: `Found ${paramsNeedingReview.length} parameters that need review`
       });
     }
     
     return {
       convertedWorkflow,
       logs,
-      parametersNeedingReview,
+      paramsNeedingReview,
       workflowHasFunction
     };
   }
@@ -680,7 +695,7 @@ function convertMakeToN8n(workflow: any): ConversionResult {
     };
     
     // Mark function parameter as needing review for consistency
-    parametersNeedingReview.push("Node Function, parameter functionCode");
+    paramsNeedingReview.push("Node Function, parameter functionCode");
     workflowHasFunction = true;
     
     logs.push({
@@ -688,17 +703,17 @@ function convertMakeToN8n(workflow: any): ConversionResult {
       message: `Converted ${workflow.flow.length} modules to n8n nodes`
     });
     
-    if (parametersNeedingReview.length > 0) {
+    if (paramsNeedingReview.length > 0) {
       logs.push({
         type: "warning",
-        message: `Found ${parametersNeedingReview.length} parameters that need review`
+        message: `Found ${paramsNeedingReview.length} parameters that need review`
       });
     }
     
     return {
       convertedWorkflow,
       logs,
-      parametersNeedingReview,
+      paramsNeedingReview,
       workflowHasFunction
     };
   }
@@ -733,10 +748,23 @@ function convertMakeToN8n(workflow: any): ConversionResult {
     // Map module type
     if (module.type === 'http' || module.module?.includes('http')) {
       nodeType = 'n8n-nodes-base.httpRequest';
+      // Add log to debug module type mapping
+      logs.push({
+        type: "info",
+        message: `Mapping module type ${module.type} to node type ${nodeType}`
+      });
+      
+      // Fix case sensitivity issue by checking both URL and url
       nodeParams = {
-        url: module.parameters?.url || 'https://example.com',
+        url: module.parameters?.URL || module.parameters?.url || 'https://example.com',
         method: module.parameters?.method || 'GET'
       };
+      
+      // Log parameter mapping
+      logs.push({
+        type: "info",
+        message: `Parameter mapping for HTTP module: URL=${module.parameters?.URL}, url=${module.parameters?.url}`
+      });
       
       // Add timeout if present
       if (module.parameters?.timeout) {
@@ -769,7 +797,7 @@ function convertMakeToN8n(workflow: any): ConversionResult {
       };
       
       // Mark for review
-      parametersNeedingReview.push(`Node ${module.name}, parameter functionCode`);
+      paramsNeedingReview.push(`Node ${module.name}, parameter functionCode`);
     } else if (module.type === 'webhook' || module.module?.includes('webhook')) {
       nodeType = 'n8n-nodes-base.webhook';
       nodeParams = {
@@ -821,17 +849,17 @@ function convertMakeToN8n(workflow: any): ConversionResult {
     message: `Conversion complete: ${workflow.flow.length} modules converted to ${nodes.length} nodes`
   });
   
-  if (parametersNeedingReview.length > 0) {
+  if (paramsNeedingReview.length > 0) {
     logs.push({
       type: "warning",
-      message: `Found ${parametersNeedingReview.length} parameters that need review`
+      message: `Found ${paramsNeedingReview.length} parameters that need review`
     });
   }
   
   return {
     convertedWorkflow,
     logs,
-    parametersNeedingReview,
+    paramsNeedingReview,
     workflowHasFunction: hasFunctionNode
   };
 }

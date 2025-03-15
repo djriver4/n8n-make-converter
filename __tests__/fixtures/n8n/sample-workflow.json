@@ -1,4 +1,6 @@
 {
+  "name": "Sample n8n Workflow",
+  "active": true,
   "nodes": [
     {
       "id": "a1b2c3",

@@ -16,6 +16,7 @@ const logger = {
 };
 import { NodeParameterProcessor } from '../converters/parameter-processor';
 import { evaluateExpression, isExpression, extractExpressionContent } from '../expression-evaluator';
+import { generateNodeId } from '../utils/typescript-utils';
 
 /**
  * Direction of node mapping conversion
@@ -125,11 +126,25 @@ export class NodeMapper {
    * @param makeModuleId - The Make.com module ID to find mapping for
    * @returns The matching node mapping or undefined if not found
    */
-  getNodeMappingByMakeId(makeModuleId: string): NodeMapping | undefined {
+  getNodeMappingByMakeId(makeModuleId: string | undefined): NodeMapping | undefined {
+    if (!makeModuleId) return undefined;
+    
+    // Add debug logging
+    logger.debug(`Looking for Make module mapping with ID: ${makeModuleId}`);
+    logger.debug(`Available mappings: ${Object.keys(this.mappingDatabase.mappings).join(', ')}`);
+    
     // Find the mapping by source node type
-    return Object.values(this.mappingDatabase.mappings).find(
+    const mapping = Object.values(this.mappingDatabase.mappings).find(
       (mapping) => mapping.sourceNodeType === makeModuleId && mapping.source === 'make'
     );
+    
+    if (mapping) {
+      logger.debug(`Found mapping for ${makeModuleId}: ${mapping.targetNodeType}`);
+    } else {
+      logger.debug(`No mapping found for Make module ID: ${makeModuleId}`);
+    }
+    
+    return mapping;
   }
   
   /**
@@ -315,6 +330,34 @@ export class NodeMapper {
   }
   
   /**
+   * Normalizes position data to ensure consistent format
+   * 
+   * @param position - Position data which could be in various formats
+   * @returns A normalized [x, y] tuple
+   */
+  private normalizePosition(position: any): [number, number] {
+    if (!position) return [0, 0]; // Default position
+    
+    if (Array.isArray(position)) {
+      // Ensure array has exactly two elements
+      return [
+        typeof position[0] === 'number' ? position[0] : 0,
+        typeof position[1] === 'number' ? position[1] : 0
+      ];
+    }
+    
+    if (typeof position === 'object') {
+      // Handle object format {x: number, y: number}
+      return [
+        typeof position.x === 'number' ? position.x : 0,
+        typeof position.y === 'number' ? position.y : 0
+      ];
+    }
+    
+    return [0, 0]; // Fallback
+  }
+  
+  /**
    * Convert an n8n node to a Make.com module
    * 
    * This method handles the complete conversion process:
@@ -338,6 +381,122 @@ export class NodeMapper {
     const mapping = this.getNodeMappingByN8nType(nodeType);
       
     if (!mapping) {
+      // Special case for comment nodes - convert to helper:Note in Make
+      if (nodeType === 'n8n-nodes-base.comment' || nodeType === 'n8n-nodes-base.stickyNote') {
+        logger.info('No mapping found for Comment node, using helper:Note module mapping');
+        
+        // Extract parameters from the n8n node
+        const nodeParams = n8nNode.parameters || {};
+        
+        // Create a base Make module for a note
+        const makeModule: Record<string, any> = {
+          id: n8nNode.id,
+          name: n8nNode.name || 'Note',
+          label: n8nNode.name || 'Note',
+          module: 'helper:Note',
+          type: 'helper',
+          parameters: {},
+          mapper: {
+            note: nodeParams.note || nodeParams.content || 'Converted from n8n Comment'
+          }
+        };
+        
+        // Copy position if available
+        if (n8nNode.position) {
+          makeModule.position = this.normalizePosition(n8nNode.position);
+        }
+        
+        return {
+          node: makeModule,
+          debug: {
+            usedFallback: true,
+            nodeType
+          }
+        };
+      }
+      
+      // Special case for switch nodes - convert to builtin:BasicRouter in Make
+      if (nodeType === 'n8n-nodes-base.switch') {
+        logger.info('No mapping found for Switch node, using builtin:BasicRouter module mapping');
+        
+        // Extract parameters from the n8n node
+        const nodeParams = n8nNode.parameters || {};
+        const rules = nodeParams.rules?.conditions || [];
+        
+        // Create a base Make module for a router
+        const makeModule: Record<string, any> = {
+          id: n8nNode.id,
+          name: n8nNode.name || 'Router',
+          label: n8nNode.name || 'Router',
+          module: 'builtin:BasicRouter',
+          type: 'builtin',
+          parameters: {},
+          mapper: {},
+          routes: rules.map((rule: any, index: number) => {
+            return {
+              sourceId: n8nNode.id,
+              targetId: '', // Will be filled in by the workflow converter
+              label: `Route ${index + 1}`,
+              condition: {
+                left: rule.value1 || '',
+                operator: rule.operation || 'equal',
+                right: rule.value2 || ''
+              }
+            };
+          })
+        };
+        
+        // Copy position if available
+        if (n8nNode.position) {
+          makeModule.position = this.normalizePosition(n8nNode.position);
+        }
+        
+        return {
+          node: makeModule,
+          debug: {
+            usedFallback: true,
+            nodeType
+          }
+        };
+      }
+      
+      // Special case for webhook nodes - convert to webhooks:CustomWebhook in Make
+      if (nodeType === 'n8n-nodes-base.webhook') {
+        logger.info('No mapping found for Webhook node, using webhooks:CustomWebhook module mapping');
+        
+        // Extract parameters from the n8n node
+        const nodeParams = n8nNode.parameters || {};
+        
+        // Create a base Make module for a webhook
+        const makeModule: Record<string, any> = {
+          id: n8nNode.id,
+          name: n8nNode.name || 'Webhook',
+          label: n8nNode.name || 'Webhook', 
+          module: 'webhooks:CustomWebhook',
+          type: 'webhooks',
+          parameters: {},
+          mapper: {
+            method: nodeParams.httpMethod || 'GET',
+            url: nodeParams.path || 'webhook',
+            responseType: nodeParams.responseMode || 'onReceived',
+            responseData: nodeParams.responseData || 'firstEntryJson'
+          }
+        };
+        
+        // Copy position if available
+        if (n8nNode.position) {
+          makeModule.position = this.normalizePosition(n8nNode.position);
+        }
+        
+        return {
+          node: makeModule,
+          debug: {
+            usedFallback: true,
+            nodeType
+          }
+        };
+      }
+      
       throw new NodeMappingError(`No mapping found for n8n node type: ${nodeType}`);
     }
     
@@ -351,7 +510,7 @@ export class NodeMapper {
     
     // Copy position if available
     if (n8nNode.position) {
-      makeModule.position = n8nNode.position;
+      makeModule.position = this.normalizePosition(n8nNode.position);
     }
     
     // Special handling for Set node
@@ -500,50 +659,54 @@ export class NodeMapper {
     mapping: NodeMapping,
     options: ConversionOptions
   ): void {
-    // Process each parameter
-    for (const [sourcePath, paramMapping] of Object.entries(mapping.parameterMappings)) {
-      const sourceValue = this.getNestedValue(sourceParams, sourcePath);
-      
-      // Skip undefined values
-      if (sourceValue === undefined) continue;
-      
-      let value = sourceValue;
-      
-      // Evaluate expressions if requested
-      if (options.evaluateExpressions && typeof value === 'string' && isExpression(value)) {
-        try {
-          const expressionContent = extractExpressionContent(value);
-          value = evaluateExpression(expressionContent, options.expressionContext || {});
-          
-          // If evaluation returns undefined or null, use the original
-          if (value === undefined || value === null) {
+    // Check if parameterMappings exists
+    if (mapping.parameterMappings) {
+      // Process each parameter
+      for (const [sourcePath, paramMapping] of Object.entries(mapping.parameterMappings)) {
+        const sourceValue = this.getNestedValue(sourceParams, sourcePath);
+        
+        // Skip undefined values
+        if (sourceValue === undefined) continue;
+        
+        let value = sourceValue;
+        
+        // Evaluate expressions if requested
+        if (options.evaluateExpressions && typeof value === 'string' && isExpression(value)) {
+          try {
+            const expressionContent = extractExpressionContent(value);
+            value = evaluateExpression(expressionContent, options.expressionContext || {});
+            
+            // If evaluation returns undefined or null, use the original
+            if (value === undefined || value === null) {
+              value = sourceValue;
+            }
+          } catch (error) {
+            logger.warn(`Error evaluating expression "${value}":`, error);
+            // Use original value if evaluation fails
             value = sourceValue;
           }
-        } catch (error) {
-          logger.warn(`Error evaluating expression "${value}":`, error);
-          // Use original value if evaluation fails
-          value = sourceValue;
         }
-      }
-      
-      // Transform the value if needed and requested
-      if (options.transformParameterValues) {
-        // First try custom transform if defined
-        if (paramMapping.transform) {
-          value = this.applyTransformation(value, paramMapping.transform);
-        } else {
-          // Otherwise apply standard transform based on type
-          value = this.transformParameterValue(value, 'n8n', 'make');
+        
+        // Transform the value if needed and requested
+        if (options.transformParameterValues) {
+          // First try custom transform if defined
+          if (paramMapping.transform) {
+            value = this.applyTransformation(value, paramMapping.transform);
+          } else {
+            // Otherwise apply standard transform based on type
+            value = this.transformParameterValue(value, 'n8n', 'make');
+          }
         }
+        
+        // Set the value in the target structure
+        this.setNestedValue(targetParams, paramMapping.targetPath, value);
       }
-      
-      // Set the value in the target structure
-      this.setNestedValue(targetParams, paramMapping.targetPath, value);
     }
     
-    // Copy non-mapped parameters if requested
+    // Copy additional parameters that aren't mapped
     if (options.copyNonMappedParameters) {
-      const mappedSourcePaths = Object.keys(mapping.parameterMappings);
+      // Check if parameterMappings exists, if not use empty object for comparison
+      const mappedSourcePaths = mapping.parameterMappings ? Object.keys(mapping.parameterMappings) : [];
       
       for (const [key, value] of Object.entries(sourceParams)) {
         // Skip already mapped parameters
@@ -576,68 +739,296 @@ export class NodeMapper {
    * @param options - Conversion options
    * @returns Result containing the converted n8n node
    */
-  convertMakeModuleToN8nNode(
-    makeModule: Record<string, any>,
-    options: ConversionOptions = {}
-  ): ConversionResult {
-    const moduleType = makeModule.type;
-    
-    // Get the mapping for this module type
-    const mapping = this.getNodeMappingByMakeId(moduleType);
-    
-    if (!mapping) {
-      throw new NodeMappingError(`No mapping found for Make.com module type: ${moduleType}`);
-    }
-    
-    // Create the base n8n node
-    const n8nNode: Record<string, any> = {
-      id: makeModule.id,
-      name: makeModule.name || `Converted ${moduleType}`,
-      type: mapping.targetNodeType,
-      parameters: {},
-    };
-    
-    // Copy position if available
-    if (makeModule.position) {
-      n8nNode.position = makeModule.position;
-    }
-    
-    // Special handling for setVariable module
-    if (moduleType === 'setVariable') {
-      this.processSetVariableModuleToSetNode(makeModule, n8nNode, options);
-    } else {
-      // Standard parameter processing for other module types
-      if (makeModule.parameters) {
-        this.processMakeParameters(makeModule.parameters, n8nNode.parameters, mapping, options);
+  convertMakeModuleToN8nNode(makeModule: MakeModule, options: ConversionOptions = {}): ConversionResult {
+    try {
+      // Use module property as a fallback if type is missing
+      const moduleType = makeModule.type || makeModule.module?.split(':')[0];
+      
+      // Try to find the mapping for this module type
+      const mapping = this.getNodeMappingByMakeId(moduleType);
+      
+      if (!mapping) {
+        // Special case for HTTP modules - create a default HTTP node
+        if (moduleType === 'http') {
+          logger.info('No mapping found for HTTP module, using default HTTP mapping');
+          
+          // Extract parameters from the Make module
+          const makeParams = makeModule.parameters || {};
+          const mapper = makeModule.mapper || {};
+          
+          // Use NodeParameterProcessor to convert parameters properly
+          const convertedParams = NodeParameterProcessor.convertMakeToN8nParameters(makeParams, options.expressionContext);
+          
+          // Create a base n8n node with converted parameters
+          const n8nNode: Record<string, any> = {
+            id: makeModule.id || generateNodeId(),
+            name: makeModule.name || makeModule.label || 'HTTP',
+            type: 'n8n-nodes-base.httpRequest',
+            parameters: {
+              // Use mapper properties with fallbacks
+              url: mapper.url || convertedParams.url || 'https://example.com',
+              method: mapper.method || convertedParams.method || 'GET',
+            },
+            typeVersion: 1
+          };
+          
+          // Copy position if available
+          if (makeModule.position) {
+            n8nNode.position = this.normalizePosition(makeModule.position);
+          }
+          
+          return {
+            node: n8nNode,
+            debug: {
+              usedFallback: true,
+              moduleType,
+            }
+          };
+        }
+        
+        // Special case for helper:Note modules - convert to a Comment node in n8n
+        if (moduleType === 'helper:Note' || moduleType === 'helper') {
+          logger.info('No mapping found for Note module, using Comment node mapping');
+          
+          // Extract parameters from the Make module
+          const makeParams = makeModule.parameters || {};
+          const mapper = makeModule.mapper || {};
+          
+          // Create a base n8n node for a comment
+          const n8nNode: Record<string, any> = {
+            id: makeModule.id ? String(makeModule.id) : generateNodeId(),
+            name: makeModule.name || makeModule.label || 'Note',
+            type: 'n8n-nodes-base.comment',
+            parameters: {
+              // Use note content from mapper or parameters
+              note: mapper.note || makeParams.note || 'Converted from Make.com Note'
+            },
+            typeVersion: 1
+          };
+          
+          // Copy position if available
+          if (makeModule.position) {
+            n8nNode.position = this.normalizePosition(makeModule.position);
+          }
+          
+          return {
+            node: n8nNode,
+            debug: {
+              usedFallback: true,
+              moduleType,
+            }
+          };
+        }
+        
+        // Special case for builtin modules (including builtin:BasicRouter) - convert to a Switch node
+        if (moduleType === 'builtin' || moduleType === 'builtin:BasicRouter') {
+          logger.info('No mapping found for Router module, using Switch node mapping');
+          
+          // Extract parameters and routes from the Make module
+          const makeParams = makeModule.parameters || {};
+          const routes = makeModule.routes || [];
+          
+          // Create a base n8n node for a switch
+          const n8nNode: Record<string, any> = {
+            id: makeModule.id ? String(makeModule.id) : generateNodeId(),
+            name: makeModule.name || makeModule.label || 'Router',
+            type: 'n8n-nodes-base.switch',
+            parameters: {
+              mode: 'rules',
+              dataType: 'string',
+              rules: {
+                // Convert Make routes to n8n rules if possible
+                conditions: routes.map((route, index) => {
+                  return {
+                    value1: '{{$json["value"]}}', // Default placeholder
+                    operation: 'equal',
+                    value2: `Route ${index + 1}`,
+                    output: index
+                  };
+                })
+              }
+            },
+            typeVersion: 1
+          };
+          
+          // Copy position if available
+          if (makeModule.position) {
+            n8nNode.position = this.normalizePosition(makeModule.position);
+          }
+          
+          return {
+            node: n8nNode,
+            debug: {
+              usedFallback: true,
+              moduleType,
+            }
+          };
+        }
+        
+        // Special case for webhooks modules - convert to a Webhook node
+        if (moduleType === 'webhooks' || moduleType === 'webhooks:CustomWebhook') {
+          logger.info('No mapping found for Webhooks module, using Webhook node mapping');
+          
+          // Extract parameters from the Make module
+          const makeParams = makeModule.parameters || {};
+          const mapper = makeModule.mapper || {};
+          
+          // Create a base n8n node for a webhook
+          const n8nNode: Record<string, any> = {
+            id: makeModule.id ? String(makeModule.id) : generateNodeId(),
+            name: makeModule.name || makeModule.label || 'Webhook',
+            type: 'n8n-nodes-base.webhook',
+            parameters: {
+              httpMethod: mapper.method || 'GET',
+              path: mapper.url || makeParams.path || 'webhook',
+              responseMode: 'onReceived',
+              responseData: 'firstEntryJson'
+            },
+            typeVersion: 1
+          };
+          
+          // Copy position if available
+          if (makeModule.position) {
+            n8nNode.position = this.normalizePosition(makeModule.position);
+          }
+          
+          return {
+            node: n8nNode,
+            debug: {
+              usedFallback: true,
+              moduleType,
+            }
+          };
+        }
+        
+        // Special case for tools module (including tools:ActionRunJavascript) - convert to a Function node
+        if (moduleType === 'tools') {
+          logger.info('No mapping found for Tools module, using Function node mapping');
+          
+          // Extract parameters from the Make module
+          const makeParams = makeModule.parameters || {};
+          const mapper = makeModule.mapper || {};
+          
+          // Create a base n8n node for a function
+          const n8nNode: Record<string, any> = {
+            id: makeModule.id ? String(makeModule.id) : generateNodeId(),
+            name: makeModule.name || makeModule.label || 'Function',
+            type: 'n8n-nodes-base.function',
+            parameters: {
+              functionCode: mapper.code || 'return items;'
+            },
+            typeVersion: 1
+          };
+          
+          // Copy position if available
+          if (makeModule.position) {
+            n8nNode.position = this.normalizePosition(makeModule.position);
+          }
+          
+          return {
+            node: n8nNode,
+            debug: {
+              usedFallback: true,
+              moduleType,
+            }
+          };
+        }
+        
+        // Special case for json module - convert to a JSON Parse node
+        if (moduleType === 'json') {
+          logger.info('No mapping found for JSON module, using JSON Parse node mapping');
+          
+          // Extract parameters from the Make module
+          const makeParams = makeModule.parameters || {};
+          const mapper = makeModule.mapper || {};
+          
+          // Create a base n8n node for a json parse operation
+          const n8nNode: Record<string, any> = {
+            id: makeModule.id ? String(makeModule.id) : generateNodeId(),
+            name: makeModule.name || makeModule.label || 'JSON Parse',
+            type: 'n8n-nodes-base.jsonParse',
+            parameters: {
+              property: mapper.parsedObject || 'data'
+            },
+            typeVersion: 1
+          };
+          
+          // Copy position if available
+          if (makeModule.position) {
+            n8nNode.position = this.normalizePosition(makeModule.position);
+          }
+          
+          return {
+            node: n8nNode,
+            debug: {
+              usedFallback: true,
+              moduleType,
+            }
+          };
+        }
+        
+        throw new NodeMappingError(`No mapping found for Make.com module type: ${moduleType}`);
       }
-    }
-    
-    // Apply any custom transformations defined in the mapping
-    if (mapping.customTransform && typeof mapping.customTransform === 'function') {
-      try {
-        const customResult = mapping.customTransform(makeModule, options.expressionContext);
-        // Merge the custom result with our base result
-        Object.assign(n8nNode, customResult);
-      } catch (error) {
-        logger.error(`Error in custom transform for ${moduleType}:`, error);
-      }
-    }
-    
-    // Return the result
-    const result: ConversionResult = {
-      node: n8nNode
-    };
-    
-    // Include debug info if requested
-    if (options.debug) {
-      result.debug = {
-        sourceModule: makeModule,
-        mapping,
-        options
+      
+      // Create the base n8n node
+      const n8nNode: N8nNode = {
+        id: makeModule.id ? String(makeModule.id) : generateNodeId(),
+        name: makeModule.name || `Converted ${moduleType}`,
+        type: mapping.targetNodeType,
+        parameters: {},
+        typeVersion: 1
       };
+      
+      // Copy position if available
+      if (makeModule.position) {
+        n8nNode.position = this.normalizePosition(makeModule.position);
+      }
+      
+      // Special handling for setVariable module
+      if (moduleType === 'setVariable') {
+        this.processSetVariableModuleToSetNode(makeModule, n8nNode, options);
+      } else {
+        // Use NodeParameterProcessor to convert parameters
+        if (makeModule.parameters) {
+          n8nNode.parameters = NodeParameterProcessor.convertMakeToN8nParameters(makeModule.parameters, options.expressionContext);
+          
+          // Ensure headers are correctly mapped
+          if (makeModule.parameters.headers) {
+            n8nNode.parameters.headers = makeModule.parameters.headers;
+          }
+        }
+      }
+      
+      // Apply any custom transformations defined in the mapping
+      if (mapping.customTransform && typeof mapping.customTransform === 'function') {
+        try {
+          const customResult = mapping.customTransform(makeModule, options.expressionContext);
+          // Merge the custom result with our base result
+          Object.assign(n8nNode, customResult);
+        } catch (error) {
+          logger.error(`Error in custom transform for ${moduleType}:`, error);
+        }
+      }
+      
+      // Return the result
+      const result: ConversionResult = {
+        node: n8nNode
+      };
+      
+      // Include debug info if requested
+      if (options.debug) {
+        result.debug = {
+          sourceModule: makeModule,
+          mapping,
+          options
+        };
+      }
+      
+      return result;
+    } catch (error: any) {
+      logger.error(`Error in convertMakeModuleToN8nNode:`, error);
+      throw new NodeMappingError(`Error in convertMakeModuleToN8nNode: ${error.message}`);
     }
-    
-    return result;
   }
 
   /**
@@ -720,82 +1111,6 @@ export class NodeMapper {
         
         // Store the converted value in n8n format
         n8nNode.parameters.values[key] = { value: convertedValue };
-      }
-    }
-  }
-  
-  /**
-   * Process parameters from Make.com to n8n format
-   * 
-   * @param sourceParams - The source Make.com parameters
-   * @param targetParams - The target n8n parameters
-   * @param mapping - The node mapping to use
-   * @param options - Conversion options
-   */
-  private processMakeParameters(
-    sourceParams: Record<string, any>,
-    targetParams: Record<string, any>,
-    mapping: NodeMapping,
-    options: ConversionOptions
-  ): void {
-    // Process each parameter
-    for (const [sourcePath, paramMapping] of Object.entries(mapping.parameterMappings)) {
-      const sourceValue = this.getNestedValue(sourceParams, sourcePath);
-      
-      // Skip undefined values
-      if (sourceValue === undefined) continue;
-      
-      let value = sourceValue;
-      
-      // Evaluate expressions if requested
-      if (options.evaluateExpressions && typeof value === 'string' && isExpression(value)) {
-        try {
-          const expressionContent = extractExpressionContent(value);
-          value = evaluateExpression(expressionContent, options.expressionContext || {});
-          
-          // If evaluation returns undefined or null, use the original
-          if (value === undefined || value === null) {
-            value = sourceValue;
-          }
-        } catch (error) {
-          logger.warn(`Error evaluating expression "${value}":`, error);
-          // Use original value if evaluation fails
-          value = sourceValue;
-        }
-      }
-      
-      // Transform the value if needed and requested
-      if (options.transformParameterValues) {
-        // First try custom transform if defined
-        if (paramMapping.transform) {
-          value = this.applyTransformation(value, paramMapping.transform);
-        } else {
-          // Otherwise apply standard transform based on type
-          value = this.transformParameterValue(value, 'make', 'n8n');
-        }
-      }
-      
-      // Set the value in the target structure
-      this.setNestedValue(targetParams, paramMapping.targetPath, value);
-    }
-    
-    // Copy non-mapped parameters if requested
-    if (options.copyNonMappedParameters) {
-      const mappedSourcePaths = Object.keys(mapping.parameterMappings);
-      
-      for (const [key, value] of Object.entries(sourceParams)) {
-        // Skip already mapped parameters
-        if (mappedSourcePaths.some(path => path === key || path.startsWith(`${key}.`))) {
-          continue;
-        }
-        
-        // Copy value, applying transformations
-        let transformedValue = value;
-        if (options.transformParameterValues) {
-          transformedValue = this.transformParameterValue(value, 'make', 'n8n');
-        }
-        
-        targetParams[key] = transformedValue;
       }
     }
   }

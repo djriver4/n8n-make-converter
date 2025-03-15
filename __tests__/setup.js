@@ -67,6 +67,31 @@ expect.extend({
 
 // Setup file for Jest tests
 
+// Mock localStorage for tests
+class LocalStorageMock {
+  constructor() {
+    this.store = {};
+  }
+
+  clear() {
+    this.store = {};
+  }
+
+  getItem(key) {
+    return this.store[key] || null;
+  }
+
+  setItem(key, value) {
+    this.store[key] = String(value);
+  }
+
+  removeItem(key) {
+    delete this.store[key];
+  }
+}
+
+global.localStorage = new LocalStorageMock();
+
 // Mock fetch for tests
 if (!global.fetch) {
   global.fetch = jest.fn().mockImplementation(() => 

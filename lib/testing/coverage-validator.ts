@@ -53,7 +53,7 @@ export class CoverageValidator {
     const unmappedNodes: string[] = []
 
     for (const nodeType of commonNodeTypes) {
-      if (allMappings[nodeType]) {
+      if (nodeType in allMappings) {
         mappedNodes.push(nodeType)
       } else {
         unmappedNodes.push(nodeType)
@@ -109,7 +109,7 @@ export class CoverageValidator {
     const unmappedModules: string[] = []
 
     for (const moduleType of commonModuleTypes) {
-      if (allMappings[moduleType]) {
+      if (moduleType in allMappings) {
         mappedModules.push(moduleType)
       } else {
         unmappedModules.push(moduleType)
