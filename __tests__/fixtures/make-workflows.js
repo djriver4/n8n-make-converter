@@ -256,6 +256,31 @@ exports.expressionsMakeWorkflow = {
                 },
             },
         },
+        {
+            id: 2,
+            module: "tools:ActionRunJavascript",
+            version: 1,
+            parameters: {},
+            mapper: {
+                code: `
+                    // Function code with complex expressions
+                    return {
+                        processedData: items[0].data.map(item => {
+                            return {
+                                id: item.id,
+                                value: item.value * 2
+                            };
+                        })
+                    };
+                `
+            },
+            metadata: {
+                designer: {
+                    x: 300,
+                    y: 0,
+                },
+            },
+        }
     ],
     metadata: {
         instant: false,

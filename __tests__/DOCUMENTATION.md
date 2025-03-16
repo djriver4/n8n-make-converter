@@ -5,24 +5,53 @@ This document provides comprehensive documentation for the test suite of the n8n
 ## Table of Contents
 
 1. [Overview](#overview)
-2. [Test Structure](#test-structure)
-3. [Running Tests](#running-tests)
-4. [Test Types](#test-types)
+2. [Current Test Status](#current-test-status)
+3. [Documentation Organization](#documentation-organization)
+4. [Test Structure](#test-structure)
+5. [Running Tests](#running-tests)
+6. [Test Types](#test-types)
    - [Unit Tests](#unit-tests)
    - [Integration Tests](#integration-tests)
    - [Regression Tests](#regression-tests)
    - [End-to-End Tests](#end-to-end-tests)
    - [Manual Tests](#manual-tests)
-5. [Test Fixtures](#test-fixtures)
-6. [Mocks](#mocks)
-7. [Test Utilities](#test-utilities)
-8. [Writing New Tests](#writing-new-tests)
-9. [Debugging Tests](#debugging-tests)
-10. [Common Issues](#common-issues)
+   - [Benchmark Tests](#benchmark-tests)
+7. [Test Fixtures](#test-fixtures)
+8. [Mocks](#mocks)
+9. [Test Utilities](#test-utilities)
+10. [Writing New Tests](#writing-new-tests)
+11. [Debugging Tests](#debugging-tests)
+12. [Common Issues](#common-issues)
 
 ## Overview
 
 The n8n-make-converter test suite is designed to ensure the reliability and correctness of the workflow conversion process between n8n and Make.com platforms. It includes a variety of test types, from unit tests for individual components to end-to-end tests for the complete conversion process.
+
+## Current Test Status
+
+As of the most recent test run, the test suite shows the following status:
+
+- **Test Suites**: 6 failed, 31 passed, 37 total
+- **Tests**: 14 failed, 300 passed, 314 total
+
+The failing tests are primarily concentrated in the Make-to-n8n conversion functionality, with issues in the following areas:
+
+1. **Make-to-n8n Converter Tests**: Tests in `__tests__/lib/converters/make-to-n8n.test.js` and `make-to-n8n.test.ts` are failing because HTTP nodes aren't being properly defined in the conversion process
+   
+2. **Workflow Conversion Integration Tests**: The round-trip conversion tests in `__tests__/integration/workflow-conversion.test.js` and `workflow-conversion.test.ts` are failing due to issues with HTTP module conversion
+
+3. **Parameter and Expression Processing**: While most expression evaluation tests are passing, there are still issues with certain edge cases
+
+The majority of unit tests are passing successfully, especially those related to compatibility layer, interface adapters, and expression evaluation core functionality.
+
+## Documentation Organization
+
+The testing framework is documented across several files:
+
+- **`__tests__/DOCUMENTATION.md`** (this file): Comprehensive documentation for all aspects of the test suite
+- **`__tests__/guides/WORKFLOW_CONVERTER_TESTS.md`**: Detailed guide for working with workflow converter tests
+- **`__tests__/notes/RECENT_TEST_FIXES.md`**: Documentation of recent fixes made to the workflow converter tests
+- **`__tests__/README.md`**: A quick overview of the test framework with key information
 
 ## Test Structure
 
@@ -37,6 +66,9 @@ The test suite is organized into the following directories:
 - `__tests__/benchmarks/`: Performance benchmarks
 - `__tests__/examples/`: Example tests demonstrating specific features
 - `__tests__/types/`: TypeScript type definitions for tests
+- `__tests__/guides/`: Detailed guides for specific testing topics
+- `__tests__/notes/`: Documentation of changes and improvements
+- `__tests__/lib/`: Test-specific implementation files
 
 ## Running Tests
 
@@ -60,6 +92,9 @@ npm test -- path/to/test/file.test.js
 
 # Run test with verbose output
 npm test -- --verbose
+
+# Run tests matching a specific pattern
+npm test -- -t "should evaluate expressions"
 ```
 
 ## Test Types
@@ -87,6 +122,7 @@ Integration tests verify the interaction between multiple components and subsyst
 - `__tests__/integration/workflow-converter.test.ts`: Tests the complete workflow conversion process using the NodeMapping system and Expression Evaluator.
 - `__tests__/integration/workflow-conversion.test.ts`: Tests converting workflows between n8n and Make.com formats.
 - `__tests__/integration/workflow-converter-e2e.test.ts`: End-to-end tests for workflow conversion.
+- `__tests__/integration/workflow-validation.test.ts`: Tests for validating workflow structure before and after conversion.
 
 ### Regression Tests
 
@@ -101,6 +137,19 @@ The regression testing system automatically tests a set of sample workflows and 
 3. Verify that the generated expected output is correct
 4. Future test runs will compare conversions against this expected output
 
+**Running Regression Tests:**
+
+```bash
+# Run all regression tests
+npm run test:regression
+
+# Initialize regression test directory structure
+npm run test:regression -- --init
+
+# Initialize without running tests
+npm run test:regression -- --init --no-run
+```
+
 ### End-to-End Tests
 
 End-to-end tests verify the complete workflow conversion process from start to finish, including all components. These tests are primarily in the `__tests__/integration/workflow-converter-e2e.test.ts` file.
@@ -111,6 +160,20 @@ Manual tests are provided for interactive testing and debugging. These tests are
 
 - `__tests__/manual-test.js`: A manual test script for interactive testing
 - `__tests__/manual-test.test.js`: A Jest test version of the manual tests
+
+### Benchmark Tests
+
+Benchmark tests evaluate the performance of core components:
+
+- `__tests__/benchmarks/compatibility-layer-benchmark.ts`: Performance benchmarks for the compatibility layer
+- `__tests__/benchmarks/README.md`: Documentation for performance benchmarking
+
+To run benchmark tests:
+
+```bash
+# Run benchmark tests
+npm test __tests__/benchmarks/
+```
 
 ## Test Fixtures
 
@@ -136,8 +199,15 @@ The `__tests__/utils/` directory contains utility functions for testing:
 
 - `loadFixture`: Loads a fixture file from the fixtures directory
 - `compareWorkflows`: Compares two workflows and returns whether they match and any differences found
+- `validate-codebase.ts`: Utilities for validating the codebase structure
 - Custom matchers for workflow comparison
 - Validation utilities
+
+## Custom Matchers
+
+The testing framework includes custom matchers to make it easier to test workflow conversions:
+
+- `toMatchWorkflowStructure`: Compares two workflows and checks if they have the same structure, ignoring non-essential properties like IDs and positions.
 
 ## Writing New Tests
 
@@ -183,6 +253,45 @@ To debug tests, you can use the following approaches:
 
 ## Common Issues
 
+### HTTP Node Mapping Issues
+
+The HTTP node is one of the most common nodes used in tests. Issues with HTTP node mapping typically involve:
+
+- **URL parameter case sensitivity**: Make.com uses `URL` (uppercase) while n8n uses `url` (lowercase)
+- **Parameter mismatch**: Different parameter structures between platforms
+- **Missing mappings**: No mapping defined for HTTP modules
+
+**Solution**: 
+- Ensure the NodeMapper properly handles URL case conversion
+- Add default fallback for HTTP modules in `convertMakeModuleToN8nNode`
+- Use the NodeParameterProcessor to correctly convert parameters
+
+### Expression Evaluation Issues
+
+Tests involving expression evaluation often fail because of:
+
+- **Expression format differences**: `{{1.id}}` (Make) vs `={{ $json.id }}` (n8n)
+- **Context not provided**: Missing context for expression evaluation
+- **Transformation errors**: Errors in the expression transformation logic
+
+**Solution**:
+- Use the correct regular expressions for transformation (e.g., `/(\d+)\.(\w+)/g` to match numeric references)
+- Ensure expression context is provided via options
+- Use the NodeParameterProcessor for parameter conversions
+
+### Parameter Mapping Issues
+
+Issues with parameter mapping include:
+
+- **Missing parameterMappings**: The `parameterMappings` property is undefined
+- **Type errors**: TypeScript type errors related to parameter types
+- **Nested parameter access**: Issues accessing deeply nested parameters
+
+**Solution**:
+- Check if `parameterMappings` exists before using it
+- Use proper TypeScript interfaces
+- Use `getNestedValue` and `setNestedValue` for deep parameter access
+
 ### Tests not finding modules
 
 If tests cannot find modules, ensure that:
@@ -208,4 +317,6 @@ Increase the timeout limit for tests that legitimately need more time:
 
 ```typescript
 jest.setTimeout(10000); // 10 seconds
-``` 
+```
+
+For more detailed information on specific issues and their solutions, refer to the [Recent Test Fixes](notes/RECENT_TEST_FIXES.md) document. 

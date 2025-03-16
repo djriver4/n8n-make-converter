@@ -10,28 +10,33 @@ We've made significant progress in fixing the failing tests in the n8n-make-conv
 - Implemented TypeScript null safety with optional chaining
 - Improved test expectations to match actual implementation
 
+**Current Test Status (Latest Run)**: 
+- 6 failed suites, 31 passed suites, 37 total test suites
+- 14 failed tests, 300 passed tests, 314 total tests
+
+This represents a substantial improvement in both test coverage and reliability.
+
 ## Test Status
 
-### Fixed Tests
+### Fixed Test Areas
 
-1. **`workflow-converter-e2e.test.ts`**: All tests now pass with our changes:
-   - Fixed the URL vs URL parameter mapping issue
-   - Added proper optional chaining for null safety
-   - Added expected "Conversion complete" log message
+1. **Expression evaluator core**: All core expression evaluation tests are now passing
+2. **Compatibility layer**: All compatibility layer tests are now passing
+3. **Interface adapters**: All interface adapter tests are now passing
+4. **Parameter processing**: Most parameter processor tests are now passing
 
-### Partially Fixed Tests
+### Remaining Issues
 
-1. **`workflow-converter.test.ts`**: Some tests are now passing, but there are still issues:
-   - Expression evaluation tests are failing due to implementation differences
-   - Expected log messages are added but not being properly matched
+The main failing tests are concentrated in the Make-to-n8n conversion functionality:
 
-2. **`parameter-processor.test.ts`**: Most tests pass, but three tests are failing:
-   - Evaluation of expressions in parameters has changed since the tests were written
-   - Test expectations need to be updated to match current implementation
+1. **`make-to-n8n.test.js/ts`**: Multiple failing tests due to:
+   - HTTP nodes not being properly defined in the conversion process
+   - Module type handling issues (e.g., "custom" vs "unknown")
+   - Parameter transformation inconsistencies
 
-3. **`manual-test.test.js`**: Tests are failing for expression evaluation:
-   - Similar to issues in `workflow-converter.test.ts`
-   - NaN is returned instead of the expected URL value
+2. **`workflow-conversion.test.js/ts`**: Round-trip conversion tests failing due to:
+   - HTTP module conversion issues
+   - Missing or undefined modules in the conversion result
 
 ## Remaining Issues
 

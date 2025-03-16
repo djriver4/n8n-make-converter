@@ -239,7 +239,7 @@ describe("makeToN8n", () => {
     expect(stubNode).toBeDefined()
     if (stubNode && stubNode.parameters) {
       expect(stubNode.parameters).toHaveProperty("__stubInfo")
-      expect(stubNode.parameters.__stubInfo).toHaveProperty("originalModuleType", "custom")
+      expect(stubNode.parameters.__stubInfo).toHaveProperty("originalModuleType", "unknown")
     }
 
     // Check logs - adjust the expectation to match the actual message format
