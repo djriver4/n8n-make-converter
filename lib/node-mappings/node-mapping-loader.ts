@@ -197,6 +197,42 @@ export class NodeMappingLoader {
               responseData: ['responseData']
             }
           },
+          // Add webhook mapping (without the 's') for better compatibility
+          webhook: {
+            sourceNodeType: 'webhook',
+            targetNodeType: 'n8n-nodes-base.webhook',
+            source: 'make',
+            sourceParameterPaths: {
+              method: ['httpMethod'],
+              url: ['path'],
+              responseType: ['responseMode'],
+              responseData: ['responseData']
+            },
+            targetParameterPaths: {
+              httpMethod: ['method'],
+              path: ['url'],
+              responseMode: ['responseType'],
+              responseData: ['responseData']
+            }
+          },
+          // Add webhook:CustomWebhook mapping (without the 's') for better compatibility
+          webhookCustomWebhook: {
+            sourceNodeType: 'webhook:CustomWebhook',
+            targetNodeType: 'n8n-nodes-base.webhook',
+            source: 'make',
+            sourceParameterPaths: {
+              method: ['httpMethod'],
+              url: ['path'],
+              responseType: ['responseMode'],
+              responseData: ['responseData']
+            },
+            targetParameterPaths: {
+              httpMethod: ['method'],
+              path: ['url'],
+              responseMode: ['responseType'],
+              responseData: ['responseData']
+            }
+          },
           // Generic placeholder for unmapped nodes
           placeholder: {
             sourceNodeType: 'placeholder',

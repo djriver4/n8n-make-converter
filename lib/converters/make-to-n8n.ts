@@ -11,6 +11,7 @@ import { NodeMapper } from "../node-mappings/node-mapper";
 import { NodeMappingLoader } from "../node-mappings/node-mapping-loader";
 import { N8nNode, N8nConnection, MakeModule, MakeWorkflow, N8nWorkflow, ParameterValue } from '../node-mappings/node-types';
 import { ConversionLog, ParameterReview, WorkflowDebugInfo } from '../workflow-converter';
+import { createPlaceholderNode } from '../utils/workflow-converter-utils';
 
 // Define interfaces for type safety
 interface NodeMappingDefinition {
@@ -44,6 +45,7 @@ interface ConversionOptions {
 	skipValidation?: boolean;
 	debug?: boolean;
 	forValidationTest?: boolean;
+	strictMode?: boolean;
 	[key: string]: any;
 }
 
@@ -156,6 +158,11 @@ export async function makeToN8n(
 		}
 		debugTracker.addLog("info", "NodeMapper initialized with mapping database");
 
+		// Handle strict mode if enabled
+		if (options.strictMode) {
+			debugTracker.addLog("error", "Strict mode enabled - conversion will fail on any unmapped modules");
+		}
+
 		// Validate the Make.com workflow
 		if (!makeWorkflow) {
 			debugTracker.addLog("error", "Invalid Make.com workflow: Source workflow is empty");
@@ -219,6 +226,7 @@ export async function makeToN8n(
 		// Special handling for specific node types that need manual review
 		const nodesToReview: string[] = [];
 		const parametersNeedingReview: ParameterReview[] = [];
+		const unmappedModules: string[] = [];
 
 		// Look for specific module types that likely need manual adjustment
 		for (const module of (makeWorkflow.flow || [])) {
@@ -229,6 +237,28 @@ export async function makeToN8n(
 					parameters: ['code'],
 					reason: 'Complex expression needs review'
 				});
+			}
+			
+			// Special handling for HTTP modules with authentication
+			if (module.type === 'http' && module.mapper?.authentication) {
+				// Mark authentication parameters for review
+				parametersNeedingReview.push({
+					nodeId: String(module.id),
+					parameters: ['authentication'],
+					reason: 'Authentication credentials need review'
+				});
+			}
+			
+			// Special handling for tools modules with code
+			if (module.module?.startsWith('tools:') || module.type === 'tools') {
+				// Function/code modules need review since code needs to be converted
+				if (module.mapper?.code) {
+					parametersNeedingReview.push({
+						nodeId: String(module.id),
+						parameters: ['code', 'functionCode'],
+						reason: 'Code parameter contains complex expressions that need manual review'
+					});
+				}
 			}
 			
 			// Check for expressions in parameters
@@ -242,6 +272,32 @@ export async function makeToN8n(
 						});
 					}
 				}
+			}
+			
+			// Check for expressions in mapper properties
+			if (module.mapper) {
+				for (const [mapperKey, mapperValue] of Object.entries(module.mapper)) {
+					if (typeof mapperValue === 'string' && mapperValue.includes('{{') && mapperValue.includes('}}')) {
+						parametersNeedingReview.push({
+							nodeId: String(module.id),
+							parameters: [mapperKey],
+							reason: 'Contains Make.com expression that needs to be converted to n8n format'
+						});
+					}
+				}
+			}
+			
+			// Special handling for custom modules that might need placeholder generation
+			if (module.module?.startsWith('custom:') || module.type?.startsWith('custom:')) {
+				// Mark these as needing custom handling
+				parametersNeedingReview.push({
+					nodeId: String(module.id),
+					parameters: ['__custom'],
+					reason: 'Custom module may require special handling'
+				});
+				
+				// Track unsupported modules
+				unmappedModules.push(module.module || module.type || 'unknown');
 			}
 		}
 		
@@ -268,6 +324,88 @@ export async function makeToN8n(
 						0
 					];
 					
+					// Special handling for HTTP nodes with authentication
+					if (module.type === 'http' || module.module?.startsWith('http:')) {
+						// Special handling for HTTP module
+						if (module.mapper?.authentication) {
+							const authConfig = typeof module.mapper.authentication === 'string' 
+								? { type: module.mapper.authentication } 
+								: module.mapper.authentication as Record<string, any>;
+							
+							// Set authentication type in parameters
+							n8nNode.parameters = n8nNode.parameters || {};
+							n8nNode.parameters.authentication = authConfig.type || 'basic';
+							
+							// Determine the auth type
+							const authType = (authConfig.type || 'basic').toLowerCase();
+							
+							// Add credentials configuration based on auth type
+							if (authType === 'basic' || authType === 'basicauth') {
+								n8nNode.credentials = {
+									httpBasicAuth: {
+										username: authConfig.username || '',
+										password: authConfig.password || ''
+									}
+								};
+								debugTracker.addLog("info", "Added basic auth credentials to HTTP node");
+							} else if (authType === 'header' || authType === 'headerauth') {
+								n8nNode.credentials = {
+									httpHeaderAuth: {
+										name: authConfig.name || 'Authorization',
+										value: authConfig.value || ''
+									}
+								};
+								debugTracker.addLog("info", "Added header auth credentials to HTTP node");
+							} else if (authType === 'oauth2' || authType === 'oauth') {
+								n8nNode.credentials = {
+									oAuth2Api: {
+										accessToken: authConfig.accessToken || '',
+										refreshToken: authConfig.refreshToken || '',
+										tokenType: authConfig.tokenType || 'Bearer'
+									}
+								};
+								debugTracker.addLog("info", "Added OAuth2 credentials to HTTP node");
+							} else if (authType === 'apikey' || authType === 'queryauth') {
+								n8nNode.credentials = {
+									httpQueryAuth: {
+										name: authConfig.name || 'api_key',
+										value: authConfig.value || ''
+									}
+								};
+								debugTracker.addLog("info", "Added API key credentials to HTTP node");
+							} else {
+								// Default to basic auth if type is not recognized
+								n8nNode.credentials = {
+									httpBasicAuth: {
+										username: authConfig.username || '',
+										password: authConfig.password || ''
+									}
+								};
+								debugTracker.addLog("info", "Added default credentials to HTTP node");
+							}
+						}
+					}
+					
+					// Special handling for webhook modules
+					if ((module.module && (module.module === 'webhook:CustomWebhook' || module.module === 'webhooks:CustomWebhook' || 
+					    module.module.startsWith('webhook') || module.module.startsWith('webhooks'))) ||
+					    (module.type && (module.type.startsWith('webhook') || module.type.startsWith('webhooks')))) {
+						// Ensure we convert to the correct n8n webhook node type
+						n8nNode.type = 'n8n-nodes-base.webhook';
+						n8nNode.parameters = n8nNode.parameters || {};
+						
+						// Set webhook parameters from mapper
+						if (module.mapper) {
+							n8nNode.parameters.httpMethod = module.mapper.method || 'GET';
+							n8nNode.parameters.path = module.mapper.path || 'webhook';
+							n8nNode.parameters.responseMode = module.mapper.responseMode || 'onReceived';
+							n8nNode.parameters.responseData = module.mapper.responseData || 'firstEntryJson';
+						}
+						
+						// Add debug log for webhook module conversion
+						debugTracker.addLog("info", `Successfully converted webhook module ${module.id} to n8n-nodes-base.webhook`);
+					}
+					
 					// Add the node to the workflow
 					n8nWorkflow.nodes.push(n8nNode);
 					
@@ -279,24 +417,19 @@ export async function makeToN8n(
 					// Log the error and create a placeholder node instead
 					debugTracker.addLog("error", `Failed to convert module ${module.id}: ${error instanceof Error ? error.message : String(error)}`);
 					
-					// Create a placeholder node
-					const placeholderNode: N8nNode = {
-						id: options.preserveIds ? String(module.id) : String(n8nWorkflow.nodes.length + 1),
-						name: module.label || module.name || `Node ${n8nWorkflow.nodes.length + 1}`,
-						type: "n8n-nodes-base.noOp",
-						parameters: {
-							displayName: `Failed to convert ${module.label || module.name} (${module.type})`,
-							__stubInfo: {
-								originalModuleType: module.type,
-								originalModuleName: module.label || module.name,
-								note: `This module could not be automatically converted due to an error. Original type: ${module.type}`
-							}
-						},
-						position: [
-							(n8nWorkflow.nodes.length * 200),
-							0
-						]
-					};
+					// Create a placeholder node using enhanced function
+					const placeholderNode = createPlaceholderNode(module);
+					
+					// Preserve ID if requested
+					if (options.preserveIds && module.id) {
+						placeholderNode.id = String(module.id);
+					}
+					
+					// Properly position the node
+					placeholderNode.position = [
+						(n8nWorkflow.nodes.length * 200),
+						0
+					];
 					
 					n8nWorkflow.nodes.push(placeholderNode);
 					moduleToNodeMap[module.id] = placeholderNode;
@@ -435,7 +568,7 @@ export async function makeToN8n(
 			convertedWorkflow: n8nWorkflow,
 			logs: debugTracker.getGeneralLogs(),
 			paramsNeedingReview: parametersNeedingReview,
-			unmappedNodes: unconvertedModules,
+			unmappedNodes: unmappedModules.length > 0 ? unmappedModules : unconvertedModules,
 			debug: debugInfo
 		};
 	} catch (error) {
@@ -483,16 +616,15 @@ function convertModuleToNode(module: MakeModule, options: ConversionOptions = {}
 		
 		return n8nNode;
 	} catch (error) {
-		// If there's an error during conversion, create a basic placeholder node
-		return {
-		 id: options.preserveIds ? String(module.id) : `${generateNodeId()}`,
-		 name: module.name || 'Unconverted Make Module',
-		 type: 'n8n-nodes-base.noOp',
-		 position: getPositionFromModule(module),
-		 parameters: {
-		   originalType: module.type || 'unknown',
-		 },
-		};
+		// If there's an error during conversion, use the enhanced placeholder node generation
+		const placeholderNode = createPlaceholderNode(module);
+		
+		// Preserve ID if needed
+		if (options.preserveIds && module.id) {
+			placeholderNode.id = String(module.id);
+		}
+		
+		return placeholderNode;
 	}
 }
 
