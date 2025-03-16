@@ -779,25 +779,98 @@ export class NodeMapper {
             
             const authType = authConfig.type || mapperAuthConfig.type || 'basicAuth';
             
-            // Add credentials configuration based on auth type
-            n8nNode.credentials = {
-              httpBasicAuth: {
-                username: (authConfig.username as string) || '',
-                password: (authConfig.password as string) || ''
-              }
-            };
-            
             // Set auth type in parameters
             n8nNode.parameters.authentication = authType;
+            
+            // Add credentials configuration based on auth type
+            if (authType === 'basicAuth') {
+              n8nNode.credentials = {
+                httpBasicAuth: {
+                  username: authConfig.username || mapperAuthConfig.username || '',
+                  password: authConfig.password || mapperAuthConfig.password || ''
+                }
+              };
+            } else if (authType === 'headerAuth') {
+              n8nNode.credentials = {
+                httpHeaderAuth: {
+                  name: authConfig.name || mapperAuthConfig.name || 'Authorization',
+                  value: authConfig.value || mapperAuthConfig.value || ''
+                }
+              };
+            } else if (authType === 'oAuth2') {
+              n8nNode.credentials = {
+                oAuth2Api: {
+                  accessToken: authConfig.accessToken || mapperAuthConfig.accessToken || '',
+                  refreshToken: authConfig.refreshToken || mapperAuthConfig.refreshToken || '',
+                  tokenType: authConfig.tokenType || mapperAuthConfig.tokenType || 'Bearer'
+                }
+              };
+            } else if (authType === 'apiKey') {
+              n8nNode.credentials = {
+                httpQueryAuth: {
+                  name: authConfig.name || mapperAuthConfig.name || 'api_key',
+                  value: authConfig.value || mapperAuthConfig.value || ''
+                }
+              };
+            }
           }
           
           // Copy additional parameters like headers and body
-          if (makeParams.headers || convertedParams.headers) {
-            n8nNode.parameters.headers = makeParams.headers || convertedParams.headers;
+          if (makeParams.headers || convertedParams.headers || mapper.headers) {
+            // Handle headers with improved formatting
+            const headersSource = makeParams.headers || convertedParams.headers || mapper.headers || {};
+            const formattedHeaders = Array.isArray(headersSource) 
+              ? headersSource 
+              : Object.entries(headersSource).map(([name, value]) => ({ name, value }));
+            
+            n8nNode.parameters.headers = formattedHeaders;
+            
+            // Check for Content-Type header to set appropriate body content type
+            const contentTypeHeader = Array.isArray(formattedHeaders) 
+              ? formattedHeaders.find(h => h.name?.toLowerCase() === 'content-type')
+              : null;
+              
+            if (contentTypeHeader) {
+              n8nNode.parameters.contentType = contentTypeHeader.value?.includes('json') 
+                ? 'json'
+                : contentTypeHeader.value?.includes('form') 
+                  ? 'form'
+                  : 'raw';
+            }
           }
           
-          if (makeParams.body || convertedParams.body) {
-            n8nNode.parameters.body = makeParams.body || convertedParams.body;
+          if (makeParams.body || convertedParams.body || mapper.body) {
+            // Handle body with content type detection
+            const bodyContent = makeParams.body || convertedParams.body || mapper.body;
+            
+            if (typeof bodyContent === 'object' && bodyContent !== null) {
+              // If body is an object, it's likely JSON
+              n8nNode.parameters.contentType = 'json';
+              n8nNode.parameters.body = bodyContent;
+              
+              // Set Content-Type header if not already set
+              if (!n8nNode.parameters.headers || !n8nNode.parameters.headers.some((h: { name?: string }) => h.name?.toLowerCase() === 'content-type')) {
+                n8nNode.parameters.headers = n8nNode.parameters.headers || [];
+                n8nNode.parameters.headers.push({
+                  name: 'Content-Type',
+                  value: 'application/json'
+                });
+              }
+            } else {
+              // Raw body
+              n8nNode.parameters.body = bodyContent;
+            }
+          }
+          
+          // Handle query parameters
+          if (makeParams.query || convertedParams.query || mapper.query) {
+            const queryParams = makeParams.query || convertedParams.query || mapper.query || {};
+            
+            if (typeof queryParams === 'object' && queryParams !== null) {
+              n8nNode.parameters.queryParameters = Object.entries(queryParams).map(([name, value]) => ({ name, value }));
+            } else if (Array.isArray(queryParams)) {
+              n8nNode.parameters.queryParameters = queryParams;
+            }
           }
           
           // Copy position if available

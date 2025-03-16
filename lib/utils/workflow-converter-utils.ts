@@ -123,14 +123,38 @@ export function createSafeN8nNode(
  * @returns A placeholder N8nNode
  */
 export function createPlaceholderNode(makeModule: MakeModule): N8nNode {
+  const moduleName = makeModule.name || 'Unknown';
+  const moduleType = makeModule.type || 'unknown';
+  const moduleId = makeModule.id?.toString() || 'unknown';
+  
+  // Create a more descriptive display name
+  const displayName = `Unmapped: ${moduleName} (${moduleType})`;
+  
+  // Create a detailed stub information object with all available metadata
+  const stubInfo = {
+    __stubInfo: {
+      originalModuleType: moduleType,
+      originalModuleId: moduleId,
+      originalModuleName: moduleName,
+      message: `No mapping found for Make.com module type: ${moduleType}`,
+      paramsPreview: makeModule.parameters ? JSON.stringify(makeModule.parameters).substring(0, 200) + '...' : '',
+      conversionTimestamp: new Date().toISOString()
+    }
+  };
+  
+  // Merge any original parameters with our stub info
+  const parameters = {
+    ...(makeModule.parameters || {}),
+    ...stubInfo,
+    displayName: displayName,
+    notes: `This is a placeholder node for Make.com module "${moduleName}" of type "${moduleType}" that couldn't be mapped. Original module ID: ${moduleId}.`,
+  };
+  
   return ensureN8nNode({
     id: generateNodeId(),
-    name: makeModule.name ? String(makeModule.name) : `Unmapped ${makeModule.type || 'Unknown'}`,
+    name: `[Unmapped] ${moduleName}`,
     type: 'n8n-nodes-base.noOp',
-    parameters: { 
-      originalType: makeModule.type || 'unknown',
-      displayName: `Placeholder for ${makeModule.name || makeModule.type || 'unknown'}`
-    },
+    parameters: parameters,
     position: makeModule.position || [0, 0]
   });
 }
@@ -142,11 +166,31 @@ export function createPlaceholderNode(makeModule: MakeModule): N8nNode {
  * @returns A placeholder MakeModule
  */
 export function createPlaceholderModule(n8nNode: N8nNode): MakeModule {
+  const nodeName = n8nNode.name || 'Unknown';
+  const nodeType = n8nNode.type || 'unknown';
+  const nodeId = n8nNode.id || 'unknown';
+  
+  // Create detailed stub information
+  const stubInfo = {
+    __stubInfo: {
+      originalNodeType: nodeType,
+      originalNodeId: nodeId,
+      originalNodeName: nodeName,
+      message: `No mapping found for n8n node type: ${nodeType}`,
+      conversionTimestamp: new Date().toISOString()
+    }
+  };
+  
   return ensureMakeModule({
     id: n8nNode.id || generateNodeId(),
-    name: `[UNMAPPED] ${n8nNode.name || 'Unknown'}`,
+    name: `[UNMAPPED] ${nodeName}`,
+    label: `Unmapped: ${nodeName} (${nodeType})`,
     type: "placeholder",
-    parameters: { originalType: n8nNode.type || 'unknown' },
-    notes: `This module represents an unmapped n8n node of type: ${n8nNode.type || 'unknown'}`
+    module: "placeholder",
+    parameters: { 
+      ...stubInfo,
+      originalType: nodeType
+    },
+    notes: `This module represents an unmapped n8n node of type: ${nodeType}. Original node ID: ${nodeId}`
   });
 } 
