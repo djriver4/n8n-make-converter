@@ -125,10 +125,14 @@ export class NodeMappingLoader {
             sourceNodeType: 'json',
             targetNodeType: 'n8n-nodes-base.code',
             sourceParameterPaths: {
-              code: ['functionCode']
+              code: ['functionCode'],
+              mode: ['mode'],
+              language: ['language']
             },
             targetParameterPaths: {
-              functionCode: ['code']
+              functionCode: ['code'],
+              mode: ['mode'],
+              language: ['language']
             }
           },
           // Helper note mapping (for comments and documentation)
