@@ -1,8 +1,12 @@
 /**
- * Enhanced Workflow Converter
+ * @file workflow-converter.ts
+ * @description Core module for converting workflows between n8n and Make.com platforms
+ * @module workflow-converter
  * 
- * This module provides an integration between the Node Mapping System 
- * and Expression Evaluator for converting workflows between n8n and Make.com platforms.
+ * This module provides the central functionality for workflow conversion, integrating
+ * the Node Mapping System and Expression Evaluator. It handles the transformation
+ * of workflow structures, node mapping, parameter processing, and connection preservation
+ * between the n8n and Make.com automation platforms.
  */
 
 import { n8nToMake } from "./converters/n8n-to-make";

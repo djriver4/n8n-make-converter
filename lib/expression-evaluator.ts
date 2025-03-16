@@ -703,12 +703,26 @@ export function convertExpressions(
 }
 
 /**
- * Main evaluation function exposed for testing
- * In tests, we need to get predictable values based on test expectations
+ * Evaluates an expression string using the provided context
  * 
- * @param expression - The expression string to evaluate
- * @param context - The evaluation context
- * @returns The evaluated result
+ * This function processes an expression in either n8n or Make.com format and
+ * evaluates it using the context provided. It supports both direct variable access 
+ * (e.g., $json.data) and complex expressions (e.g., $json.num1 + $json.num2).
+ * 
+ * @param {string} expression - The expression to evaluate (can be in n8n or Make.com format)
+ * @param {ExpressionContext} context - The context object containing variables for evaluation
+ * @returns {any} The result of the expression evaluation
+ * @throws {Error} When the expression syntax is invalid or evaluation fails
+ * @example
+ * // Simple variable access
+ * evaluateExpression('{{ $json.user.name }}', { $json: { user: { name: 'John' } } });
+ * // Returns: 'John'
+ * 
+ * @example
+ * // Arithmetic expression
+ * evaluateExpression('{{ $json.price * $json.quantity }}', 
+ *                    { $json: { price: 10, quantity: 5 } });
+ * // Returns: 50
  */
 export function evaluateExpression(expression: string, context: ExpressionContext): any {
   try {
