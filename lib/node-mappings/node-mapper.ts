@@ -6,7 +6,7 @@
  */
 
 import { NodeMapping, NodeMappingDatabase, ParameterMapping } from './schema';
-import { N8nNode, MakeModule } from './node-types';
+import { N8nNode, MakeModule, ParameterValue } from './node-types';
 // Create a simple console logger for now to fix the import error
 const logger = {
   info: (message: string, ...args: any[]) => console.info(`[INFO] ${message}`, ...args),
@@ -15,7 +15,7 @@ const logger = {
   debug: (message: string, ...args: any[]) => console.debug(`[DEBUG] ${message}`, ...args)
 };
 import { NodeParameterProcessor } from '../converters/parameter-processor';
-import { evaluateExpression, isExpression, extractExpressionContent } from '../expression-evaluator';
+import { evaluateExpression, isExpression, extractExpressionContent, convertMakeExpressionToN8n } from '../expression-evaluator';
 import { generateNodeId } from '../utils/typescript-utils';
 
 /**
@@ -791,36 +791,48 @@ export class NodeMapper {
    */
   convertMakeModuleToN8nNode(makeModule: MakeModule, options: ConversionOptions = {}): ConversionResult {
     try {
-      // Start with type if available, otherwise empty string
-      let moduleType = makeModule.type || '';
+      // Ensure makeModule object is valid
+      if (!makeModule) {
+        throw new Error('Invalid makeModule: Module object is undefined or null');
+      }
+
+      // Start with type if available, otherwise use a default value of 'unknown' (not empty string)
+      let moduleType = makeModule.type !== undefined ? makeModule.type : 'unknown';
       let fullModuleString = '';
       
       // If module property exists, extract both the prefix and full string
       if (makeModule.module) {
         fullModuleString = makeModule.module;
-        const parts = makeModule.module.split(':');
-        const prefix = parts[0];
         
-        // Special case for builtin:SetVariable - prioritize using 'setVariable' type if available
-        if (prefix === 'builtin' && makeModule.module.includes('SetVariable')) {
-          if (makeModule.type === 'setVariable') {
-            moduleType = 'setVariable';
-            logger.debug(`Using 'setVariable' type for builtin:SetVariable module`);
-          } else {
-            // Only override moduleType with prefix if it's empty
-            moduleType = moduleType || 'setVariable';
-            logger.debug(`Using 'setVariable' type for ${makeModule.module}`);
+        // If module is a simple string without colons, use it directly as the module type
+        if (!makeModule.module.includes(':')) {
+          moduleType = makeModule.module;
+          logger.debug(`Using module value directly as type: ${moduleType}`);
+        } else {
+          const parts = makeModule.module.split(':');
+          const prefix = parts[0];
+          
+          // Special case for builtin:SetVariable - prioritize using 'setVariable' type if available
+          if (prefix === 'builtin' && makeModule.module.includes('SetVariable')) {
+            if (makeModule.type === 'setVariable') {
+              moduleType = 'setVariable';
+              logger.debug(`Using 'setVariable' type for builtin:SetVariable module`);
+            } else {
+              // Only override moduleType with prefix if it's empty
+              moduleType = moduleType || 'setVariable';
+              logger.debug(`Using 'setVariable' type for ${makeModule.module}`);
+            }
+          } 
+          // Special case for webhook modules
+          else if (prefix === 'webhook' || prefix === 'webhooks') {
+            moduleType = moduleType || 'webhook';
+            logger.debug(`Using 'webhook' type for ${makeModule.module}`);
           }
-        } 
-        // Special case for webhook modules
-        else if (prefix === 'webhook' || prefix === 'webhooks') {
-          moduleType = moduleType || 'webhook';
-          logger.debug(`Using 'webhook' type for ${makeModule.module}`);
-        }
-        // Default case: Only use prefix if type is not already set
-        else if (!moduleType) {
-          moduleType = prefix;
-          logger.debug(`Using prefix '${prefix}' from module string: ${makeModule.module}`);
+          // Default case: Only use prefix if type is not already set
+          else if (!moduleType) {
+            moduleType = prefix;
+            logger.debug(`Using prefix '${prefix}' from module string: ${makeModule.module}`);
+          }
         }
       }
       
@@ -847,9 +859,15 @@ export class NodeMapper {
         return this.createWebhookNode(makeModule);
       }
       
-      // Special case for HTTP modules
-      if (!mapping && moduleType === 'http') {
-        logger.info('No mapping found for HTTP module, using default HTTP mapping');
+      // Special case for HTTP modules - more thorough detection of HTTP module types
+      if (!mapping && (
+          moduleType === 'http' || 
+          moduleType === 'HTTP' || 
+          fullModuleString?.includes('http:') || 
+          fullModuleString?.includes('HTTP:') || 
+          makeModule.name?.toLowerCase() === 'http'
+        )) {
+        logger.info('Converting HTTP module using enhanced HTTP mapping');
         
         // Extract parameters from the Make module
         const makeParams = makeModule.parameters || {};
@@ -861,33 +879,99 @@ export class NodeMapper {
         // Create a base n8n node for HTTP Request
         const n8nNode: N8nNode = {
           id: makeModule.id ? String(makeModule.id) : generateNodeId(),
-          name: makeModule.name || 'HTTP Request',
+          name: makeModule.name || makeModule.label || 'HTTP Request',
           type: 'n8n-nodes-base.httpRequest',
-          parameters: {
-            url: mapper.url || convertedParams.url || 'https://example.com',
-            method: mapper.method || convertedParams.method || 'GET',
-            authentication: 'none',
-            options: {}
-          },
+          parameters: {},
           typeVersion: 1
         };
         
-        // Add authentication if available
+        // Handle URL parameter (case-insensitive)
+        n8nNode.parameters.url = 
+          mapper.url || mapper.URL || 
+          makeParams.url || makeParams.URL || 
+          '';
+        
+        // Handle method parameter (case-insensitive)
+        n8nNode.parameters.method = 
+          mapper.method || mapper.METHOD || 
+          makeParams.method || makeParams.METHOD || 
+          'GET';
+
+        // Transform expressions in URL parameter
+        if (n8nNode.parameters.url && typeof n8nNode.parameters.url === 'string' && 
+            n8nNode.parameters.url.includes('{{') && n8nNode.parameters.url.includes('}}')) {
+          // Convert Make.com expressions to n8n expressions
+          const urlParam = n8nNode.parameters.url;
+          const convertedUrl = convertMakeExpressionToN8n(urlParam);
+          n8nNode.parameters.url = convertedUrl;
+          logger.debug(`Converted URL parameter from "${urlParam}" to "${convertedUrl}"`);
+        }
+
+        // Only set authentication if it's not "none" and not empty/undefined
+        const auth = mapper.authentication || makeParams.authentication;
+        if (auth && auth !== 'none') {
+          n8nNode.parameters.authentication = auth;
+        }
+        
+        // Handle headers if they exist
+        if (mapper.headers || makeParams.headers || convertedParams.headers) {
+          n8nNode.parameters.headers = mapper.headers || makeParams.headers || convertedParams.headers || {};
+        }
+        
+        // Handle authentication if specified
         if (mapper.authentication || makeParams.authentication) {
-          const authType = mapper.authentication || makeParams.authentication;
-          if (authType === 'basic') {
-            n8nNode.parameters.authentication = 'basicAuth';
-            n8nNode.parameters.username = mapper.username || convertedParams.username || '';
-            n8nNode.parameters.password = mapper.password || convertedParams.password || '';
-            n8nNode.credentials = {
-              httpBasicAuth: {
-                username: mapper.username || convertedParams.username || '',
-                password: mapper.password || convertedParams.password || ''
-              }
-            };
-            logger.debug('Added Basic Auth credentials to HTTP node');
+          const authConfig = typeof mapper.authentication === 'string' 
+            ? { type: mapper.authentication } 
+            : mapper.authentication || makeParams.authentication || { type: 'none' };
+          
+          const authType = (authConfig.type || 'none').toLowerCase();
+          
+          // Only set credentials if authentication type is not 'none'
+          if (authType !== 'none') {
+            if (authType === 'basic' || authType === 'basicauth') {
+              n8nNode.parameters.authentication = 'basicAuth';
+              n8nNode.credentials = {
+                httpBasicAuth: {
+                  username: mapper.username || makeParams.username || convertedParams.username || '',
+                  password: mapper.password || makeParams.password || convertedParams.password || ''
+                }
+              };
+              logger.debug('Added Basic Auth credentials to HTTP node');
+            } else if (authType === 'header' || authType === 'headerauth') {
+              n8nNode.parameters.authentication = 'headerAuth';
+              n8nNode.credentials = {
+                httpHeaderAuth: {
+                  name: authConfig.name || 'Authorization',
+                  value: authConfig.value || ''
+                }
+              };
+              logger.debug('Added Header Auth credentials to HTTP node');
+            } else if (authType === 'oauth2' || authType === 'oauth') {
+              n8nNode.parameters.authentication = 'oAuth2';
+              n8nNode.credentials = {
+                oAuth2Api: {
+                  accessToken: authConfig.accessToken || '',
+                  refreshToken: authConfig.refreshToken || '',
+                  tokenType: authConfig.tokenType || 'Bearer'
+                }
+              };
+              logger.debug('Added OAuth2 credentials to HTTP node');
+            } else if (authType === 'apikey' || authType === 'queryauth') {
+              n8nNode.parameters.authentication = 'queryAuth';
+              n8nNode.credentials = {
+                httpQueryAuth: {
+                  name: authConfig.name || 'api_key',
+                  value: authConfig.value || ''
+                }
+              };
+              logger.debug('Added Query Auth credentials to HTTP node');
+            }
           }
-          // Add other auth types as needed
+        }
+        
+        // Only add options if they are explicitly provided
+        if (makeParams.options || mapper.options) {
+          n8nNode.parameters.options = makeParams.options || mapper.options || {};
         }
         
         // Copy position if available
@@ -896,6 +980,116 @@ export class NodeMapper {
         }
         
         // Return the result
+        return {
+          node: n8nNode,
+          debug: options.debug ? {
+            sourceModule: makeModule,
+            options,
+            note: 'Used enhanced HTTP mapping'
+          } : undefined
+        };
+      }
+      
+      // Special case for JSON modules
+      if (!mapping && (moduleType === 'json' || fullModuleString === 'json')) {
+        logger.info('Converting JSON module to JSON Parse node');
+        
+        // Extract parameters from the Make module
+        const mapper = makeModule.mapper || {};
+        
+        // Create a base n8n node for JSON Parse
+        const n8nNode: N8nNode = {
+          id: makeModule.id ? String(makeModule.id) : generateNodeId(),
+          name: makeModule.name || makeModule.label || 'JSON Parse',
+          type: 'n8n-nodes-base.jsonParse',
+          parameters: {
+            property: mapper.parsedObject || '{{$json.data}}'
+          },
+          typeVersion: 1
+        };
+        
+        // Set position
+        n8nNode.position = [0, 0];
+        
+        return {
+          node: n8nNode,
+          debug: {
+            moduleType,
+            fullModuleString
+          }
+        };
+      }
+      
+      // Special case for Function/Tools modules
+      if (!mapping && (moduleType === 'tools' || fullModuleString === 'tools')) {
+        logger.info('Converting Tools module to Function node');
+        
+        // Extract parameters from the Make module
+        const mapper = makeModule.mapper || {};
+        
+        // Create a base n8n node for Function
+        const n8nNode: N8nNode = {
+          id: makeModule.id ? String(makeModule.id) : generateNodeId(),
+          name: makeModule.name || makeModule.label || 'Function',
+          type: 'n8n-nodes-base.function',
+          parameters: {
+            functionCode: mapper.code || '// Add code here\nreturn items;'
+          },
+          typeVersion: 1
+        };
+        
+        // Set position
+        n8nNode.position = [0, 0];
+        
+        return {
+          node: n8nNode,
+          debug: {
+            moduleType,
+            fullModuleString
+          }
+        };
+      }
+      
+      if (!mapping) {
+        // Create a placeholder node instead of throwing an error
+        logger.warn(`No mapping found for Make.com module type: ${moduleType || 'undefined'}. Creating placeholder node.`);
+        
+        // Create a placeholder node that clearly indicates it's unmapped
+        const n8nNode: N8nNode = {
+          id: makeModule.id ? String(makeModule.id) : generateNodeId(),
+          name: `[Unmapped] ${makeModule.name || makeModule.label || (moduleType ? moduleType : 'Unknown')}`,
+          type: 'n8n-nodes-base.noOp',
+          parameters: {
+            __stubInfo: {
+              originalModuleType: moduleType || 'custom',
+              fullModuleString: fullModuleString || '',
+              originalName: makeModule.name || makeModule.label || ''
+            } as unknown as ParameterValue, // Type assertion to satisfy ParameterValue
+            displayName: makeModule.name || makeModule.label || moduleType,
+            notes: `This is a placeholder for an unmapped Make.com module of type "${moduleType || 'undefined'}"`
+          },
+          typeVersion: 1
+        };
+        
+        // Copy position if available
+        if (makeModule.position) {
+          n8nNode.position = this.normalizePosition(makeModule.position);
+        }
+        
+        // Copy all parameters from the original module to help with debugging
+        if (makeModule.parameters) {
+          Object.assign(n8nNode.parameters, makeModule.parameters);
+        }
+        
+        if (makeModule.mapper) {
+          // Store the mapper content in the parameters for reference
+          Object.keys(makeModule.mapper).forEach(key => {
+            const paramName = `__mapper_${key}`;
+            n8nNode.parameters[paramName] = makeModule.mapper![key];
+          });
+        }
+        
+        // Return the placeholder node
         const result: ConversionResult = {
           node: n8nNode
         };
@@ -909,10 +1103,6 @@ export class NodeMapper {
         }
         
         return result;
-      }
-      
-      if (!mapping) {
-        throw new NodeMappingError(`No mapping found for Make.com module type: ${moduleType}`);
       }
 
       // Create the base n8n node

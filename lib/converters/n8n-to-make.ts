@@ -6,7 +6,7 @@
 
 import { DebugTracker } from "../debug-tracker"
 import { getNodeMappings } from "../mappings/node-mapping"
-import logger from "../logger"
+import { Logger } from "../logger"
 import { NodeMapper } from "../node-mappings/node-mapper"
 import { NodeMappingLoader } from "../node-mappings/node-mapping-loader"
 import { NodeParameterProcessor } from "../converters/parameter-processor"
@@ -115,10 +115,10 @@ export async function n8nToMake(
       const nodeMapper = new NodeMapper(mappingDatabase);
       
       // Here we could use the enhanced mapper for better conversion
-      logger.info('Using enhanced node mapper for conversion');
+      Logger.info('Using enhanced node mapper for conversion');
     } else {
       // Use the simpler mapping approach from node-mapping.ts
-      logger.info('Using basic node mapper for conversion');
+      Logger.info('Using basic node mapper for conversion');
     }
 
     // Process the n8n workflow

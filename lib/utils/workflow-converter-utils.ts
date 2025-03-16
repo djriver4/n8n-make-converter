@@ -124,7 +124,8 @@ export function createSafeN8nNode(
  */
 export function createPlaceholderNode(makeModule: MakeModule): N8nNode {
   const moduleName = makeModule.name || 'Unknown';
-  const moduleType = makeModule.type || 'unknown';
+  // Check both module.type and module.module to determine the module type
+  const moduleType = makeModule.module || makeModule.type || 'unknown';
   const moduleId = makeModule.id?.toString() || 'unknown';
   
   // Create a more descriptive display name

@@ -48,33 +48,52 @@ export class NodeMappingLoader {
           httpRequest: {
             sourceNodeType: 'n8n-nodes-base.httpRequest',
             targetNodeType: 'http',
-            sourceParameterPaths: {
-              url: ['url'],
-              method: ['method'],
-              authentication: ['authentication'],
-              headers: ['headers'],
-              queryParameters: ['query'],
-              body: ['body']
+            metadata: {
+              displayName: 'HTTP Request',
+              description: 'Make HTTP requests',
+              version: '1.0',
             },
-            targetParameterPaths: {
-              URL: ['url'],
-              method: ['method'],
-              headers: ['headers']
-            }
+            parameterMappings: [
+              {
+                sourcePath: 'url',
+                targetPath: 'URL'  // Uppercase for Make.com
+              },
+              {
+                sourcePath: 'method',
+                targetPath: 'method'
+              },
+              {
+                sourcePath: 'headers',
+                targetPath: 'headers'
+              }
+            ]
           },
           http: {
             sourceNodeType: 'http',
             targetNodeType: 'n8n-nodes-base.httpRequest',
-            sourceParameterPaths: {
-              URL: ['url'],
-              method: ['method'],
-              headers: ['headers']
+            metadata: {
+              displayName: 'HTTP Request',
+              description: 'Make HTTP requests',
+              version: '1.0',
             },
-            targetParameterPaths: {
-              url: ['URL'],
-              method: ['method'],
-              headers: ['headers']
-            }
+            parameterMappings: [
+              {
+                sourcePath: 'URL',  // Uppercase for Make.com
+                targetPath: 'url'
+              },
+              {
+                sourcePath: 'url',  // Also handle lowercase variant
+                targetPath: 'url'
+              },
+              {
+                sourcePath: 'method',
+                targetPath: 'method'
+              },
+              {
+                sourcePath: 'headers',
+                targetPath: 'headers'
+              }
+            ]
           },
           // Set node mapping (both directions)
           set: {
@@ -120,19 +139,30 @@ export class NodeMappingLoader {
               values: ['variables']
             }
           },
-          // JSON/code
+          // JSON/Parse - Updated to map to n8n-nodes-base.jsonParse (was code)
           json: {
             sourceNodeType: 'json',
-            targetNodeType: 'n8n-nodes-base.code',
+            targetNodeType: 'n8n-nodes-base.jsonParse',
+            sourceParameterPaths: {
+              parsedObject: ['property'],
+              data: ['data']
+            },
+            targetParameterPaths: {
+              property: ['parsedObject'],
+              options: ['options']
+            }
+          },
+          // Tools/Function - New mapping for the tools module
+          tools: {
+            sourceNodeType: 'tools',
+            targetNodeType: 'n8n-nodes-base.function',
             sourceParameterPaths: {
               code: ['functionCode'],
-              mode: ['mode'],
-              language: ['language']
+              executionMode: ['executionMode']
             },
             targetParameterPaths: {
               functionCode: ['code'],
-              mode: ['mode'],
-              language: ['language']
+              executionMode: ['executionMode'] 
             }
           },
           // Helper note mapping (for comments and documentation)

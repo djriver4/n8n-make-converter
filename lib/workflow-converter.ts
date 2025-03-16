@@ -15,7 +15,7 @@ import { DebugTracker } from "./debug-tracker";
 import { getPluginRegistry } from "./plugin-registry";
 import { processObjectWithExpressions, ExpressionContext, convertExpressions } from "./expression-evaluator";
 import { NodeParameterProcessor } from "./converters/parameter-processor";
-import logger from "./logger";
+import Logger from "./logger";
 import { 
   N8nNode, 
   MakeModule, 
@@ -168,7 +168,7 @@ export class WorkflowConverter {
   constructor(mappingDatabase: NodeMappingDatabase, debugTracker?: DebugTracker) {
     this.nodeMapper = new NodeMapper(mappingDatabase);
     this.debugTracker = debugTracker || new DebugTracker();
-    logger.info('WorkflowConverter initialized');
+    Logger.info('WorkflowConverter initialized');
   }
   
   /**
@@ -310,7 +310,7 @@ export class WorkflowConverter {
           try {
             // Skip if target node is undefined
             if (!connection.node && !connection.targetNodeId) {
-              logger.warn(`Skipping connection with missing target node (source: ${sourceNodeId})`);
+              Logger.warn(`Skipping connection with missing target node (source: ${sourceNodeId})`);
               continue;
             }
             
@@ -319,7 +319,7 @@ export class WorkflowConverter {
             
             // Skip if source or target node ID is not in the map
             if (!nodeIdMap[sourceNodeId] || !nodeIdMap[targetNodeId]) {
-              logger.warn(`Skipping connection due to missing node mapping (source: ${sourceNodeId}, target: ${targetNodeId})`);
+              Logger.warn(`Skipping connection due to missing node mapping (source: ${sourceNodeId}, target: ${targetNodeId})`);
               continue;
             }
             
@@ -376,7 +376,7 @@ export class WorkflowConverter {
     makeWorkflow: MakeWorkflow,
     options: WorkflowConversionOptions = {}
   ): WorkflowConversionResult {
-    logger.info('Starting Make to n8n workflow conversion');
+    Logger.info('Starting Make to n8n workflow conversion');
     // Create logs array
     const logs: ConversionLog[] = [];
 
@@ -404,7 +404,7 @@ export class WorkflowConverter {
           timestamp: new Date().toISOString()
         });
         
-        logger.error(`Make workflow validation failed: ${errorMessage}`);
+        Logger.error(`Make workflow validation failed: ${errorMessage}`);
         
         return {
           convertedWorkflow: {
@@ -427,8 +427,8 @@ export class WorkflowConverter {
 
     // If validation is disabled or validation passes, proceed with conversion
     try {
-      logger.info(`Make workflow name: "${makeWorkflow.name || 'Unnamed workflow'}"`);
-      logger.debug(`Make workflow has ${makeWorkflow.flow?.length || 0} modules`);
+      Logger.info(`Make workflow name: "${makeWorkflow.name || 'Unnamed workflow'}"`);
+      Logger.debug(`Make workflow has ${makeWorkflow.flow?.length || 0} modules`);
       
       // Initialize n8n workflow object
       const n8nWorkflow: N8nWorkflow = {
@@ -443,12 +443,12 @@ export class WorkflowConverter {
 
       // Process each module
       const moduleSource = makeWorkflow.flow || makeWorkflow.modules || [];
-      logger.info(`Processing ${moduleSource.length} Make modules`);
+      Logger.info(`Processing ${moduleSource.length} Make modules`);
       
       for (const module of moduleSource) {
         try {
           if (!module.type) {
-            logger.warn(`Module ${module.id} is missing a type`);
+            Logger.warn(`Module ${module.id} is missing a type`);
             logs.push({
               type: "warning",
               message: `Module ${module.id} is missing a type`,
@@ -457,7 +457,7 @@ export class WorkflowConverter {
             continue;
           }
 
-          logger.debug(`Converting module ${String(module.id)} of type ${module.type}`);
+          Logger.debug(`Converting module ${String(module.id)} of type ${module.type}`);
           
           const nodeMapper = new NodeMapper();
           const mapResult = nodeMapper.getMappedNode(
@@ -466,7 +466,7 @@ export class WorkflowConverter {
           );
 
           if (mapResult.isValid && mapResult.mappedType) {
-            logger.debug(`Found mapping for module type ${module.type} -> ${mapResult.mappedType}`);
+            Logger.debug(`Found mapping for module type ${module.type} -> ${mapResult.mappedType}`);
             // Create n8n node
             const node = createSafeN8nNode(module, mapResult.mappedType);
             
@@ -487,7 +487,7 @@ export class WorkflowConverter {
           } else {
             // Try to use the node mapper directly for conversion
             try {
-              logger.debug(`Using NodeMapper to convert module ${module.id}`);
+              Logger.debug(`Using NodeMapper to convert module ${module.id}`);
               const conversionResult = nodeMapper.convertMakeModuleToN8nNode(module);
               const n8nNode = conversionResult.node as N8nNode;
               
@@ -500,7 +500,7 @@ export class WorkflowConverter {
               }
               
               // Log the success
-              logger.info(`Successfully converted module ${String(module.id)} to ${n8nNode.type}`);
+              Logger.info(`Successfully converted module ${String(module.id)} to ${n8nNode.type}`);
               
               // If it's a special fallback conversion, track it for review
               if (conversionResult.debug?.usedFallback) {
@@ -524,7 +524,7 @@ export class WorkflowConverter {
                 mappedType: n8nNode.type
               });
             } catch (error) {
-              logger.error(`Failed to convert module ${String(module.id)}: ${error}`);
+              Logger.error(`Failed to convert module ${String(module.id)}: ${error}`);
               
               // Track unmapped node
               unmappedNodes.push(module.type || 'unknown');
@@ -579,7 +579,7 @@ export class WorkflowConverter {
             }
           }
         } catch (error) {
-          logger.error(`Error processing module ${String(module.id)}: ${error}`);
+          Logger.error(`Error processing module ${String(module.id)}: ${error}`);
           
           logs.push({
             type: "error",
@@ -647,7 +647,7 @@ export class WorkflowConverter {
         timestamp: new Date().toISOString()
       });
       
-      logger.info(`Conversion completed with ${n8nWorkflow.nodes.length} nodes created and ${unmappedNodes.length} unmapped nodes`);
+      Logger.info(`Conversion completed with ${n8nWorkflow.nodes.length} nodes created and ${unmappedNodes.length} unmapped nodes`);
 
       return {
         convertedWorkflow: n8nWorkflow,
@@ -657,7 +657,7 @@ export class WorkflowConverter {
         debug: debugInfo
       };
     } catch (error) {
-      logger.error(`Conversion failed: ${error}`);
+      Logger.error(`Conversion failed: ${error}`);
       
       logs.push({
         type: "error",
@@ -706,7 +706,7 @@ export class WorkflowConverter {
       
       return makeModule;
     } catch (error) {
-      logger.error(`Error converting n8n node to Make module: ${error instanceof Error ? error.message : String(error)}`);
+      Logger.error(`Error converting n8n node to Make module: ${error instanceof Error ? error.message : String(error)}`);
       
       // Return a minimal Make module as a fallback
       return {
@@ -736,7 +736,7 @@ export class WorkflowConverter {
       
       return n8nNode;
     } catch (error) {
-      logger.error(`Error converting Make module to n8n node: ${error instanceof Error ? error.message : String(error)}`);
+      Logger.error(`Error converting Make module to n8n node: ${error instanceof Error ? error.message : String(error)}`);
       
       // Return a minimal n8n node as a fallback
       return {
@@ -823,9 +823,9 @@ export function getWorkflowConverter(): WorkflowConverter {
       try {
         // Here we would typically load from a file or API
         // For now, we'll just use an empty database
-        logger.info('Initializing default mapping database');
+        Logger.info('Initializing default mapping database');
       } catch (error) {
-        logger.error('Failed to load default mappings', error);
+        Logger.error('Failed to load default mappings', error);
       }
     }
     defaultConverter = new WorkflowConverter(defaultMappingDatabase);
@@ -1004,7 +1004,7 @@ export function convertN8nNodeToMakeModule(
     
     return makeModule;
   } catch (error) {
-    logger.error(`Error converting n8n node to Make module: ${error instanceof Error ? error.message : String(error)}`);
+    Logger.error(`Error converting n8n node to Make module: ${error instanceof Error ? error.message : String(error)}`);
     
     // Return a minimal Make module as a fallback
     return {
@@ -1048,7 +1048,7 @@ export function convertMakeModuleToN8nNode(
     
     return n8nNode;
   } catch (error) {
-    logger.error(`Error converting Make module to n8n node: ${error instanceof Error ? error.message : String(error)}`);
+    Logger.error(`Error converting Make module to n8n node: ${error instanceof Error ? error.message : String(error)}`);
     
     // Return a minimal n8n node as a fallback
     return {
