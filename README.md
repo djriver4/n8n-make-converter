@@ -137,6 +137,18 @@ npm run test:coverage
 npx jest __tests__/path/to/test.ts
 ```
 
+For detailed documentation on testing:
+
+- [Test Updates Documentation](docs/test/test-updates.md) - Overview of test suite updates and fixed issues
+- [Expression Conversion Testing](docs/test/expression-conversion-tests.md) - Guide for testing expression handling
+- [Parameter Handling Testing](docs/test/parameter-handling-tests.md) - Guide for testing node parameter processing
+
+The project includes comprehensive test suites for:
+- Unit testing of individual components
+- Integration testing of conversion processes
+- End-to-end testing of workflow transformations
+- Validation testing of mappings and fixtures
+
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.

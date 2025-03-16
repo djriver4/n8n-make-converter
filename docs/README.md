@@ -25,6 +25,12 @@ Welcome to the n8n-Make Converter documentation! This guide provides comprehensi
 - **[Testing](./development/testing.md)** - Testing procedures and guidelines
 - **[Troubleshooting](./development/troubleshooting.md)** - Solutions for common issues
 
+### 🧪 Testing
+- **[Test Updates](./test/test-updates.md)** - Recent test suite updates and fixed issues
+- **[Expression Conversion Testing](./test/expression-conversion-tests.md)** - Guide for testing expression handling
+- **[Parameter Handling Testing](./test/parameter-handling-tests.md)** - Guide for testing node parameter processing
+- **[Remaining Test Issues](./test/remaining-test-issues.md)** - Known issues and fixes pending
+
 ### 📝 Types
 - **[Interface Reference](./types/interfaces.md)** - TypeScript interface documentation
 - **[Type Safety](./types/type-safety.md)** - Guidelines for maintaining type safety
@@ -35,8 +41,8 @@ Welcome to the n8n-Make Converter documentation! This guide provides comprehensi
 |-----------|---------------|------------------|
 | [Quick Start Guide](./getting-started/quick-start.md) | [Architecture Overview](./architecture/overview.md) | [Contributing Guide](./development/contributing.md) |
 | [Usage Examples](./getting-started/usage-examples.md) | [Components](./architecture/components.md) | [Coding Guidelines](./development/coding-guidelines.md) |
-| [Implementation Status](./implementation/status.md) | [Interface Reference](./types/interfaces.md) | [Testing](./development/testing.md) |
-| [Troubleshooting](./development/troubleshooting.md) | [Data Flow](./architecture/data-flow.md) | [Roadmap](./implementation/roadmap.md) |
+| [Implementation Status](./implementation/status.md) | [Interface Reference](./types/interfaces.md) | [Testing](./test/test-updates.md) |
+| [Troubleshooting](./development/troubleshooting.md) | [Data Flow](./architecture/data-flow.md) | [Expression Testing](./test/expression-conversion-tests.md) |
 
 ## Documentation Conventions
 

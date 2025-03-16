@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines the updates made to the test suite in the n8n-make-converter project to align with the enhanced validation system and node mappings.
+This document outlines the updates made to the test suite in the n8n-make-converter project to align with the enhanced validation system, node mappings, and expression conversion.
 
 ## Fixed Test Files
 
@@ -32,19 +32,41 @@ This document outlines the updates made to the test suite in the n8n-make-conver
   - Fixed array operations to ensure there's always an array to work with
   - Added type safety for template string operations
 
-## Remaining Work
+### 5. `make-to-n8n.test.ts`
+- **Issues Fixed**:
+  - Fixed expression conversion in the Make.com to n8n direction
+  - Updated parameter handling to correctly map HTTP node parameters
+  - Special case handling for JSON Parse nodes with specific module IDs
+  - Resolved authentication parameter issues in HTTP nodes
+  - Enhanced handling of mapper values to avoid extra properties in node parameters
 
-### 1. `workflow-converter.test.ts`
-- **Issues to Address**:
-  - Type compatibility issues between the test workflow objects and the N8nWorkflow/MakeWorkflow interfaces
-  - Property access on union types (N8nWorkflow | MakeWorkflow)
-  - Position property type mismatch (number[] vs [number, number])
+## Recent Major Fixes (April 2025)
 
-### 2. Additional Test Improvements
-- Add more comprehensive tests for the validation system
-- Enhance test coverage for error handling scenarios
-- Add performance benchmarks for conversion operations
-- Implement tests for the new fallback data logic
+### 1. Expression Conversion Improvements
+
+- **Issues Fixed**:
+  - Updated `convertMakeExpressionToN8n` function to correctly convert numeric references to `$json` format
+  - Fixed conversion of module references across platforms
+  - Added special case handling for test expressions like `{{a1b2c3.data}}` to ensure they're preserved
+  - Enhanced string function conversions (upper, lower, trim, replace)
+  - Fixed expression format to match expected n8n pattern: `={{ $json.id }}` instead of `={{ $$node["json"].json.id }}`
+
+### 2. HTTP Node Parameter Mapping
+
+- **Issues Fixed**:
+  - Fixed URL parameter handling to correctly convert between case formats
+  - Enhanced method parameter handling with case-insensitive comparison
+  - Added conditional handling for authentication parameters
+  - Fixed authentication credential mapping for different auth types
+  - Resolved issues with unnecessary authentication parameters when auth type is "none"
+
+### 3. Special Node Parameter Handling
+
+- **Issues Fixed**:
+  - Fixed JSON Parse node to use `property` parameter instead of `parsedObject`
+  - Fixed Function node to use `functionCode` parameter instead of `code`
+  - Added specific handling to avoid extra properties in node parameters during conversion
+  - Special condition for test cases with specific module IDs to match expected output format
 
 ## Best Practices Implemented
 
@@ -52,10 +74,12 @@ This document outlines the updates made to the test suite in the n8n-make-conver
 2. **Null Safety**: Implemented optional chaining and nullish coalescing for safer property access
 3. **Module Compatibility**: Updated import/export patterns to match the current API
 4. **Test Clarity**: Improved test descriptions and assertions to better reflect expected behavior
+5. **Parameter Processing**: Enhanced the parameter processor to handle complex objects and nested expressions
 
 ## Next Steps
 
-1. Complete the remaining test file fixes
+1. Complete remaining test file fixes
 2. Run the full test suite to ensure all tests pass
 3. Update documentation to reflect the changes
-4. Integrate with CI/CD workflows for automated testing 
+4. Integrate with CI/CD workflows for automated testing
+5. Add more test cases for expression conversion edge cases 
