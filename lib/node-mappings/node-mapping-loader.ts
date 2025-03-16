@@ -87,16 +87,6 @@ export class NodeMappingLoader {
               values: ['values']
             }
           },
-          setVariable: {
-            sourceNodeType: 'setVariable',
-            targetNodeType: 'n8n-nodes-base.set',
-            sourceParameterPaths: {
-              values: ['values']
-            },
-            targetParameterPaths: {
-              values: ['values']
-            }
-          },
           // Manual trigger to webhook/http
           manualTrigger: {
             sourceNodeType: 'n8n-nodes-base.manualTrigger',
@@ -108,8 +98,27 @@ export class NodeMappingLoader {
           scheduler: {
             sourceNodeType: 'scheduler',
             targetNodeType: 'n8n-nodes-base.schedule',
-            sourceParameterPaths: {},
-            targetParameterPaths: {}
+            sourceParameterPaths: {
+              time: ['time'],
+              frequency: ['mode'],
+              cronExpression: ['cron']
+            },
+            targetParameterPaths: {
+              time: ['time'],
+              mode: ['frequency'],
+              cron: ['cronExpression']
+            }
+          },
+          // Set Variable
+          setVariable: {
+            sourceNodeType: 'setVariable',
+            targetNodeType: 'n8n-nodes-base.set',
+            sourceParameterPaths: {
+              variables: ['variables']
+            },
+            targetParameterPaths: {
+              values: ['variables']
+            }
           },
           // JSON/code
           json: {
@@ -120,6 +129,68 @@ export class NodeMappingLoader {
             },
             targetParameterPaths: {
               functionCode: ['code']
+            }
+          },
+          // Helper note mapping (for comments and documentation)
+          helperNote: {
+            sourceNodeType: 'helper:Note',
+            targetNodeType: 'n8n-nodes-base.noOp',
+            source: 'make',
+            sourceParameterPaths: {
+              content: ['notes']
+            },
+            targetParameterPaths: {
+              notes: ['content']
+            }
+          },
+          // BasicRouter mapping (for switch/router functionality)
+          basicRouter: {
+            sourceNodeType: 'builtin:BasicRouter',
+            targetNodeType: 'n8n-nodes-base.switch',
+            source: 'make',
+            sourceParameterPaths: {
+              conditions: ['rules'],
+              routes: ['output']
+            },
+            targetParameterPaths: {
+              rules: ['conditions'],
+              output: ['routes']
+            }
+          },
+          // Webhooks mapping (for webhook functionality)
+          webhooks: {
+            sourceNodeType: 'webhooks',
+            targetNodeType: 'n8n-nodes-base.webhook',
+            source: 'make',
+            sourceParameterPaths: {
+              method: ['httpMethod'],
+              url: ['path'],
+              responseType: ['responseMode'],
+              responseData: ['responseData']
+            },
+            targetParameterPaths: {
+              httpMethod: ['method'],
+              path: ['url'],
+              responseMode: ['responseType'],
+              responseData: ['responseData']
+            }
+          },
+          // Custom Webhook mapping
+          customWebhook: {
+            sourceNodeType: 'webhooks:CustomWebhook',
+            targetNodeType: 'n8n-nodes-base.webhook',
+            source: 'make',
+            sourceParameterPaths: {
+              method: ['httpMethod'],
+              url: ['path'],
+              responseType: ['responseMode'],
+              responseData: ['responseData']
+            },
+            targetParameterPaths: {
+              httpMethod: ['method'],
+              path: ['url'],
+              responseMode: ['responseType'],
+              responseData: ['responseData']
             }
           },
           // Generic placeholder for unmapped nodes
@@ -183,6 +254,11 @@ export class NodeMappingLoader {
    * Get the loaded mappings
    */
   public getMappings(): NodeMappingDatabase {
+    // Initialize mappings if they haven't been loaded yet
+    if (!this.mappingDatabase || !this.mappingDatabase.mappings) {
+      logger.info('Initializing default mapping database');
+      this.loadMappings();
+    }
     return this.mappingDatabase;
   }
 

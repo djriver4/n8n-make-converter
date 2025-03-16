@@ -772,6 +772,34 @@ export class NodeMapper {
             typeVersion: 1
           };
           
+          // Handle authentication and credentials
+          if (makeParams.authentication || mapper.authentication) {
+            const authConfig = makeParams.authentication as Record<string, any> || {};
+            const mapperAuthConfig = mapper.authentication as Record<string, any> || {};
+            
+            const authType = authConfig.type || mapperAuthConfig.type || 'basicAuth';
+            
+            // Add credentials configuration based on auth type
+            n8nNode.credentials = {
+              httpBasicAuth: {
+                username: (authConfig.username as string) || '',
+                password: (authConfig.password as string) || ''
+              }
+            };
+            
+            // Set auth type in parameters
+            n8nNode.parameters.authentication = authType;
+          }
+          
+          // Copy additional parameters like headers and body
+          if (makeParams.headers || convertedParams.headers) {
+            n8nNode.parameters.headers = makeParams.headers || convertedParams.headers;
+          }
+          
+          if (makeParams.body || convertedParams.body) {
+            n8nNode.parameters.body = makeParams.body || convertedParams.body;
+          }
+          
           // Copy position if available
           if (makeModule.position) {
             n8nNode.position = this.normalizePosition(makeModule.position);
@@ -837,14 +865,25 @@ export class NodeMapper {
               mode: 'rules',
               dataType: 'string',
               rules: {
-                // Convert Make routes to n8n rules if possible
+                // Convert Make routes to n8n rules with proper mapping
                 conditions: routes.map((route, index) => {
-                  return {
-                    value1: '{{$json["value"]}}', // Default placeholder
-                    operation: 'equal',
-                    value2: `Route ${index + 1}`,
-                    output: index
-                  };
+                  // If route has conditions, use them
+                  if (route.condition) {
+                    return {
+                      value1: route.condition.field || '{{$json["value"]}}',
+                      operation: this.mapOperator(route.condition.operator || 'equal'),
+                      value2: route.condition.value || "success",
+                      output: index
+                    };
+                  } else {
+                    // Default route mapping
+                    return {
+                      value1: '{{$json["value"]}}',
+                      operation: 'equal',
+                      value2: `Route ${index + 1}`,
+                      output: index
+                    };
+                  }
                 })
               }
             },
@@ -1063,56 +1102,39 @@ export class NodeMapper {
               // Already in n8n format, just convert the content
               const content = value.slice(3, -2).trim();
               // Convert to n8n format
-              const converted = content.replace(/1\.(\w+)/g, '$json.$1');
+              const converted = content.replace(/(\d+)\.(\w+)/g, '$json["$2"]');
               value = `={{ ${converted} }}`;
             } else if (value.startsWith('{{') && value.endsWith('}}')) {
               // Extract the expression content
               const content = value.slice(2, -2).trim();
-              // Convert to n8n format
-              const converted = content.replace(/1\.(\w+)/g, '$json.$1');
+              // Convert Make format to n8n format
+              const converted = content.replace(/(\d+)\.(\w+)/g, '$json["$2"]');
               value = `={{ ${converted} }}`;
-            } else if (value.includes('{{') && value.includes('}}')) {
-              // Handle embedded expressions
-              value = value.replace(/{{(.+?)}}/g, (match: string, content: string) => {
-                const contentTrimmed = content.trim();
-                // Replace $json references with numeric references (1.xxx)
-                const convertedJson = contentTrimmed.replace(/\$json\.(\w+)/g, '1.$1');
-                // Replace $workflow references with numeric references (1.xxx)
-                const converted = convertedJson.replace(/\$workflow\.(\w+)/g, '1.$1');
-                return `{{${converted}}}`;
-              });
             }
           }
           
-          // Store the converted value in n8n format
-          n8nNode.parameters.values[key] = { value };
+          // Set the value in n8n format
+          n8nNode.parameters.values[key] = {
+            name: key,
+            type: typedConfig.type || 'string',
+            value: value
+          };
+        } else if (config !== null) {
+          // Handle simple value case (not wrapped in an object)
+          n8nNode.parameters.values[key] = {
+            name: key,
+            type: 'string',
+            value: config
+          };
         }
       }
-    } 
-    // Handle case where variables might be direct parameters
-    else if (makeModule.parameters) {
-      // Convert any direct parameters
-      for (const [key, value] of Object.entries(makeModule.parameters)) {
-        // Skip internal properties or metadata
-        if (key === 'variables' || key === 'Content-Type') continue;
-        
-        let convertedValue = value;
-        
-        // Transform the value if needed
-        if (options.transformParameterValues && typeof value === 'string') {
-          if (value.startsWith('={{') && value.endsWith('}}')) {
-            // Extract the expression content
-            const content = value.slice(2, -2).trim();
-            // Convert to n8n format
-            const converted = content.replace(/1\.(\w+)/g, '$json.$1');
-            convertedValue = `={{ ${converted} }}`;
-          }
-        }
-        
-        // Store the converted value in n8n format
-        n8nNode.parameters.values[key] = { value: convertedValue };
-      }
+    } else if (makeModule.parameters && makeModule.parameters.values) {
+      // Alternative format: directly using values
+      n8nNode.parameters.values = makeModule.parameters.values;
     }
+    
+    // Set node type
+    n8nNode.type = 'n8n-nodes-base.set';
   }
   
   /**
@@ -1238,5 +1260,35 @@ export class NodeMapper {
     
     // Set the final property
     current[parts[parts.length - 1]] = value;
+  }
+
+  /**
+   * Maps Make.com operators to n8n operators
+   */
+  private mapOperator(makeOperator: string): string {
+    const operatorMap: Record<string, string> = {
+      'eq': 'equal',
+      'equal': 'equal',
+      'equals': 'equal',
+      'ne': 'notEqual',
+      'notEqual': 'notEqual',
+      'gt': 'larger',
+      'greaterThan': 'larger',
+      'gte': 'largerEqual',
+      'greaterThanEqual': 'largerEqual',
+      'lt': 'smaller',
+      'lessThan': 'smaller',
+      'lte': 'smallerEqual',
+      'lessThanEqual': 'smallerEqual',
+      'contains': 'contains',
+      'notContains': 'notContains',
+      'startsWith': 'startsWith',
+      'endsWith': 'endsWith',
+      'isEmpty': 'isEmpty',
+      'isNotEmpty': 'isNotEmpty',
+      'regex': 'regex'
+    };
+    
+    return operatorMap[makeOperator] || 'equal';
   }
 } 

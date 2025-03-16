@@ -531,10 +531,18 @@ export class WorkflowConverter {
                 name: module.name || `Unconverted Module ${String(module.id || '')}`,
                 type: 'n8n-nodes-base.noOp',
                 parameters: {
-                  originalType: module.type,
-                  displayName: `Placeholder for ${module.name || module.type}`
+                  __stubInfo: {
+                    originalModuleType: module.type,
+                    moduleId: module.id,
+                    originalName: module.name || '',
+                    message: `No mapping found for module type: ${module.type}`,
+                    moduleParameters: module.parameters || {}
+                  },
+                  displayName: `Placeholder for ${module.name || module.type}`,
+                  notes: `This node represents an unmapped module of type "${module.type}" from the original Make.com workflow. Review and replace with appropriate n8n node.`
                 },
-                position: [0, 0]
+                position: module.position ? [module.position[0] || 0, module.position[1] || 0] : [0, 0],
+                typeVersion: 1
               };
               
               // Add the placeholder to the workflow

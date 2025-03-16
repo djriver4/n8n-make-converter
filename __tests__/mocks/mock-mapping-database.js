@@ -66,6 +66,62 @@ const mockMappingDatabase = {
       },
       parameterMappings: {}
     },
+    "schedule": {
+      source: "n8n",
+      sourceNodeType: "n8n-nodes-base.schedule",
+      targetNodeType: "scheduler",
+      metadata: {
+        displayName: "Scheduler",
+        description: "Schedule workflow execution",
+        version: "1.0",
+      },
+      parameterMappings: {
+        time: {
+          sourcePath: "time",
+          targetPath: "time"
+        },
+        mode: {
+          sourcePath: "mode",
+          targetPath: "frequency"
+        },
+        cron: {
+          sourcePath: "cron",
+          targetPath: "cronExpression"
+        }
+      }
+    },
+    "switch": {
+      source: "n8n",
+      sourceNodeType: "n8n-nodes-base.switch",
+      targetNodeType: "builtin:BasicRouter",
+      metadata: {
+        displayName: "Router",
+        description: "Route data based on conditions",
+        version: "1.0",
+      },
+      parameterMappings: {
+        rules: {
+          sourcePath: "rules",
+          targetPath: "conditions"
+        }
+      }
+    },
+    "function": {
+      source: "n8n",
+      sourceNodeType: "n8n-nodes-base.function",
+      targetNodeType: "code",
+      metadata: {
+        displayName: "Code",
+        description: "Execute custom code",
+        version: "1.0",
+      },
+      parameterMappings: {
+        functionCode: {
+          sourcePath: "functionCode",
+          targetPath: "code"
+        }
+      }
+    },
     
     // Make to n8n mappings
     "http": {
@@ -99,13 +155,26 @@ const mockMappingDatabase = {
     "scheduler": {
       source: "make",
       sourceNodeType: "scheduler",
-      targetNodeType: "n8n-nodes-base.manualTrigger",
+      targetNodeType: "n8n-nodes-base.schedule",
       metadata: {
-        displayName: "Manual Trigger",
-        description: "Trigger a workflow manually",
+        displayName: "Schedule",
+        description: "Schedule workflow execution",
         version: "1.0",
       },
-      parameterMappings: {}
+      parameterMappings: {
+        time: {
+          sourcePath: "time",
+          targetPath: "time"
+        },
+        frequency: {
+          sourcePath: "frequency",
+          targetPath: "mode"
+        },
+        cronExpression: {
+          sourcePath: "cronExpression",
+          targetPath: "cron"
+        }
+      }
     },
     "setVariable": {
       source: "make",
@@ -126,13 +195,61 @@ const mockMappingDatabase = {
     "json": {
       source: "make",
       sourceNodeType: "json",
-      targetNodeType: "n8n-nodes-base.json",
+      targetNodeType: "n8n-nodes-base.code",
       metadata: {
         displayName: "JSON",
         description: "Work with JSON data",
         version: "1.0",
       },
+      parameterMappings: {
+        code: {
+          sourcePath: "code",
+          targetPath: "functionCode"
+        }
+      }
+    },
+    "builtin:BasicRouter": {
+      source: "make",
+      sourceNodeType: "builtin:BasicRouter",
+      targetNodeType: "n8n-nodes-base.switch",
+      metadata: {
+        displayName: "Switch",
+        description: "Route data based on conditions",
+        version: "1.0",
+      },
+      parameterMappings: {
+        conditions: {
+          sourcePath: "conditions",
+          targetPath: "rules"
+        }
+      }
+    },
+    "custom:CustomAction": {
+      source: "make",
+      sourceNodeType: "custom:CustomAction",
+      targetNodeType: "n8n-nodes-base.noOp",
+      metadata: {
+        displayName: "Custom Action",
+        description: "Placeholder for custom action",
+        version: "1.0",
+      },
       parameterMappings: {}
+    },
+    "code": {
+      source: "make",
+      sourceNodeType: "code",
+      targetNodeType: "n8n-nodes-base.function",
+      metadata: {
+        displayName: "Function",
+        description: "Execute custom code",
+        version: "1.0",
+      },
+      parameterMappings: {
+        code: {
+          sourcePath: "code",
+          targetPath: "functionCode"
+        }
+      }
     },
     "placeholder": {
       source: "both",
