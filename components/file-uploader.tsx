@@ -80,6 +80,15 @@ export function FileUploader() {
         }
         updateFile(fileId, { progress: 70, platform })
 
+        // Additional validation for Make.com workflows
+        if (platform === "make" && json.flow && Array.isArray(json.flow)) {
+          // Check for modules with undefined type properties
+          const invalidModules = json.flow.filter((module: any) => module.type === undefined)
+          if (invalidModules.length > 0) {
+            throw new Error(`Invalid Make.com workflow: Found ${invalidModules.length} module(s) with undefined type properties. Please fix the workflow file.`)
+          }
+        }
+
         // Optimize large workflows for performance
         const optimizedJson = optimizeWorkflow(json)
         updateFile(fileId, { progress: 90 })
