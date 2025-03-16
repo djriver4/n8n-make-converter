@@ -1,0 +1,3 @@
+curl -X POST http://localhost:3000/api/convert/direct \
+  -H "Content-Type: application/json" \
+  -d '{"workflow": {"name":"Test Make Workflow with Unsupported Module","flow":[{"id":"1","module":"http:ActionSendData","label":"HTTP Request","mapper":{"url":"https://example.com/api","method":"GET"}},{"id":"2","module":"unsupported:UnknownModule","label":"Unsupported Module","mapper":{"someProperty":"value"}}],"metadata":{"instant":false,"version":1}}, "sourcePlatform": "make", "targetPlatform": "n8n", "options": {"bypassModuleAvailabilityChecks": true}}'

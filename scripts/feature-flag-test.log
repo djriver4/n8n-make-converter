@@ -1,0 +1,49 @@
+Starting Feature Flag Test Script
+Date: 2025-03-16T04:39:29.344Z
+Node.js version: v22.14.0
+Environment: development
+Saved workflow to /Users/davidrivera/Downloads/n8n-make-converter/scripts/test-n8n-workflow.json
+Saved workflow to /Users/davidrivera/Downloads/n8n-make-converter/scripts/test-make-workflow.json
+=== Testing with Feature Flag ENABLED ===
+Feature flag enableFullConversionInDevMode is now ENABLED
+
+--- Testing n8n to Make conversion ---
+Conversion successful: true
+Logs: [{"type":"info","message":"Starting make conversion"},{"type":"info","message":"Registered 0 plugins"},{"type":"info","message":"Converting n8n workflow to make format"},{"type":"info","message":"Starting n8n to Make.com conversion"},{"type":"warning","message":"Could not find direct mapping for node type: n8n-nodes-base.unsupportedNodeType"},{"type":"info","message":"Connection mapping not yet implemented"},{"type":"info","message":"Processing complete, checking for parameters requiring manual review"},{"type":"info","message":"Conversion complete"}]
+Unmapped nodes: none
+Saved workflow to /Users/davidrivera/Downloads/n8n-make-converter/scripts/converted-make-workflow-enabled.json
+
+--- Testing Make to n8n conversion ---
+Conversion successful: true
+Logs: [{"type":"info","message":"Starting n8n conversion"},{"type":"info","message":"Registered 0 plugins"},{"type":"info","message":"Converting make workflow to n8n format"},{"type":"info","message":"Starting Make.com to n8n conversion"},{"type":"info","message":"NodeMapper initialized with mapping database"},{"type":"info","message":"Converting module 1 using NodeMapper"},{"type":"error","message":"Failed to convert module 1: No mapping found for Make.com module type: undefined"},{"type":"info","message":"Converting module 2 using NodeMapper"},{"type":"error","message":"Failed to convert module 2: No mapping found for Make.com module type: undefined"},{"type":"info","message":"Added sequential connection from Unmapped Unknown to Unmapped Unknown"},{"type":"info","message":"Conversion completed: 2 nodes created"},{"type":"info","message":"Conversion complete"}]
+Parameters needing review: 0
+Saved workflow to /Users/davidrivera/Downloads/n8n-make-converter/scripts/converted-n8n-workflow-enabled.json
+
+
+=== Testing with Feature Flag DISABLED ===
+Feature flag enableFullConversionInDevMode is now DISABLED
+
+--- Testing n8n to Make conversion ---
+Conversion result: workflow returned
+Logs: [{"type":"info","message":"Starting make conversion"},{"type":"info","message":"Registered 0 plugins"},{"type":"info","message":"Converting n8n workflow to make format"},{"type":"info","message":"Starting n8n to Make.com conversion"},{"type":"warning","message":"Could not find direct mapping for node type: n8n-nodes-base.unsupportedNodeType"},{"type":"info","message":"Connection mapping not yet implemented"},{"type":"info","message":"Processing complete, checking for parameters requiring manual review"},{"type":"info","message":"Conversion complete"}]
+Unmapped nodes: none
+Saved workflow to /Users/davidrivera/Downloads/n8n-make-converter/scripts/converted-make-workflow-disabled.json
+
+--- Testing Make to n8n conversion ---
+Conversion result: workflow returned
+Logs: [{"type":"info","message":"Starting n8n conversion"},{"type":"info","message":"Registered 0 plugins"},{"type":"info","message":"Converting make workflow to n8n format"},{"type":"info","message":"Starting Make.com to n8n conversion"},{"type":"info","message":"NodeMapper initialized with mapping database"},{"type":"info","message":"Converting module 1 using NodeMapper"},{"type":"error","message":"Failed to convert module 1: No mapping found for Make.com module type: undefined"},{"type":"info","message":"Converting module 2 using NodeMapper"},{"type":"error","message":"Failed to convert module 2: No mapping found for Make.com module type: undefined"},{"type":"info","message":"Added sequential connection from Unmapped Unknown to Unmapped Unknown"},{"type":"info","message":"Conversion completed: 2 nodes created"},{"type":"info","message":"Conversion complete"}]
+Saved workflow to /Users/davidrivera/Downloads/n8n-make-converter/scripts/converted-n8n-workflow-disabled.json
+
+
+=== Testing with Direct WorkflowConverter Instantiation ===
+Feature flag enableFullConversionInDevMode is now ENABLED
+
+--- Testing n8n to Make conversion with direct converter ---
+Direct conversion successful: true
+Direct conversion logs: [{"type":"error","message":"Error converting n8n node 'HTTP Request' (n8n-nodes-base.httpRequest): Cannot convert undefined or null to object","details":{"error":{},"nodeId":"a1b2c3","nodeName":"HTTP Request","nodeType":"n8n-nodes-base.httpRequest"},"timestamp":"2025-03-16T04:39:29.404Z"},{"type":"error","message":"Error converting n8n node 'UnsupportedNode' (n8n-nodes-base.unsupportedNodeType): Cannot convert undefined or null to object","details":{"error":{},"nodeId":"d4e5f6","nodeName":"UnsupportedNode","nodeType":"n8n-nodes-base.unsupportedNodeType"},"timestamp":"2025-03-16T04:39:29.404Z"}]
+Saved workflow to /Users/davidrivera/Downloads/n8n-make-converter/scripts/direct-converted-make-workflow.json
+
+--- Testing Make to n8n conversion with direct converter ---
+Direct conversion successful: true
+Direct conversion logs: [{"type":"error","message":"Invalid Make.com workflow format - [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object], [object Object]","timestamp":"2025-03-16T04:39:29.406Z"}]
+Saved workflow to /Users/davidrivera/Downloads/n8n-make-converter/scripts/direct-converted-n8n-workflow.json

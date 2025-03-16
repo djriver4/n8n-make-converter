@@ -1,0 +1,18 @@
+{
+  "convertedWorkflow": {
+    "name": "Invalid workflow",
+    "nodes": [],
+    "connections": {},
+    "active": false
+  },
+  "logs": [
+    {
+      "type": "error",
+      "message": "Invalid Make.com workflow format",
+      "timestamp": "2025-03-16T04:49:33.839Z"
+    }
+  ],
+  "parametersNeedingReview": [],
+  "unmappedNodes": [],
+  "isValidInput": false
+}

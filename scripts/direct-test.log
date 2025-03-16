@@ -1,0 +1,80 @@
+
+=== Setting development mode ===
+NODE_ENV before: undefined
+NODE_ENV after: development
+Starting Direct Test Script
+Date: 2025-03-16T04:49:33.820Z
+Created test n8n workflow file at /Users/davidrivera/Downloads/n8n-make-converter/scripts/direct-test-n8n-workflow.json
+Created test Make workflow file at /Users/davidrivera/Downloads/n8n-make-converter/scripts/direct-test-make-workflow.json
+
+=== Checking feature flag status ===
+enableFullConversionInDevMode: undefined
+
+=== Running tests with feature flag disabled ===
+
+=== Testing n8n to Make conversion ===
+Direct check - bypassChecks: false
+Direct check - featureFlag: undefined
+Direct check - isDev: true
+Conversion successful. Result saved to /Users/davidrivera/Downloads/n8n-make-converter/scripts/direct-test-n8n-to-make.json
+
+❌ BYPASS MODE NOT DETECTED in logs
+Conversion logs:
+[warning] No mapping found for n8n node type: n8n-nodes-base.httpRequest
+[warning] No mapping found for n8n node type: n8n-nodes-base.unsupportedNodeType
+
+=== Testing Make to n8n conversion ===
+Conversion successful. Result saved to /Users/davidrivera/Downloads/n8n-make-converter/scripts/direct-test-make-to-n8n.json
+
+❌ BYPASS MODE NOT DETECTED in logs
+Conversion logs:
+[error] Invalid Make.com workflow format
+
+=== Running tests with explicit bypass parameter ===
+
+=== Testing n8n to Make conversion with bypass ===
+Direct check - bypassChecks: true
+Direct check - featureFlag: undefined
+Direct check - isDev: true
+Conversion successful. Result saved to /Users/davidrivera/Downloads/n8n-make-converter/scripts/direct-test-n8n-to-make-bypassed.json
+
+❌ BYPASS MODE NOT DETECTED in logs
+Conversion logs:
+[warning] No mapping found for n8n node type: n8n-nodes-base.httpRequest
+[warning] No mapping found for n8n node type: n8n-nodes-base.unsupportedNodeType
+
+=== Testing Make to n8n conversion with bypass ===
+Conversion successful. Result saved to /Users/davidrivera/Downloads/n8n-make-converter/scripts/direct-test-make-to-n8n-bypassed.json
+
+❌ BYPASS MODE NOT DETECTED in logs
+Conversion logs:
+[error] Invalid Make.com workflow format
+
+=== Setting feature flag enableFullConversionInDevMode to true ===
+Updated flag value: true
+
+=== Running tests with feature flag enabled ===
+
+=== Testing n8n to Make conversion ===
+Direct check - bypassChecks: false
+Direct check - featureFlag: true
+Direct check - isDev: true
+Conversion successful. Result saved to /Users/davidrivera/Downloads/n8n-make-converter/scripts/direct-test-n8n-to-make.json
+
+❌ BYPASS MODE NOT DETECTED in logs
+Conversion logs:
+[warning] No mapping found for n8n node type: n8n-nodes-base.httpRequest
+[warning] No mapping found for n8n node type: n8n-nodes-base.unsupportedNodeType
+
+=== Testing Make to n8n conversion ===
+Conversion successful. Result saved to /Users/davidrivera/Downloads/n8n-make-converter/scripts/direct-test-make-to-n8n.json
+
+❌ BYPASS MODE NOT DETECTED in logs
+Conversion logs:
+[error] Invalid Make.com workflow format
+
+=== Setting feature flag enableFullConversionInDevMode to false ===
+Updated flag value: false
+
+=== Checking feature flag status ===
+enableFullConversionInDevMode: false

@@ -64,6 +64,13 @@ export interface ConversionOptions {
    * Copy parameters that don't have explicit mappings
    */
   copyNonMappedParameters?: boolean;
+
+  /**
+   * Bypass module availability checks (for development mode)
+   * When enabled, conversion will proceed even if a module mapping is not found,
+   * creating placeholder nodes instead of failing
+   */
+  bypassModuleAvailabilityChecks?: boolean;
 }
 
 /**
@@ -838,220 +845,74 @@ export class NodeMapper {
       
       logger.debug(`Module type determined: ${moduleType}, full module: ${fullModuleString}`);
       
-      // Try to find the mapping for this module type
-      let mapping = this.getNodeMappingByMakeId(moduleType);
-      
-      // If no mapping found with the moduleType, try with the full module string
-      if (!mapping && fullModuleString) {
-        logger.debug(`No mapping found for ${moduleType}, trying with full module string: ${fullModuleString}`);
-        mapping = this.getNodeMappingByMakeId(fullModuleString);
-      }
-      
-      // Special case for setVariable modules
-      if (!mapping && (moduleType === 'setVariable' || fullModuleString.includes('SetVariable'))) {
-        logger.info(`No mapping found for setVariable module, using default Set node mapping`);
-        return this.createSetVariableNode(makeModule, options);
-      }
-      
-      // Special case for webhook modules
-      if (!mapping && (moduleType === 'webhook' || fullModuleString.includes('webhook') || fullModuleString.includes('webhooks'))) {
-        logger.info(`No mapping found for webhook module, using default Webhook node mapping`);
-        return this.createWebhookNode(makeModule);
-      }
-      
-      // Special case for HTTP modules - more thorough detection of HTTP module types
-      if (!mapping && (
-          moduleType === 'http' || 
-          moduleType === 'HTTP' || 
-          fullModuleString?.includes('http:') || 
-          fullModuleString?.includes('HTTP:') || 
-          makeModule.name?.toLowerCase() === 'http'
-        )) {
-        logger.info('Converting HTTP module using enhanced HTTP mapping');
-        
-        // Extract parameters from the Make module
-        const makeParams = makeModule.parameters || {};
-        const mapper = makeModule.mapper || {};
-        
-        // Use NodeParameterProcessor to convert parameters properly
-        const convertedParams = NodeParameterProcessor.convertMakeToN8nParameters(makeParams, options.expressionContext);
-        
-        // Create a base n8n node for HTTP Request
-        const n8nNode: N8nNode = {
-          id: makeModule.id ? String(makeModule.id) : generateNodeId(),
-          name: makeModule.name || makeModule.label || 'HTTP Request',
-          type: 'n8n-nodes-base.httpRequest',
-          parameters: {},
-          typeVersion: 1
-        };
-        
-        // Handle URL parameter (case-insensitive)
-        n8nNode.parameters.url = 
-          mapper.url || mapper.URL || 
-          makeParams.url || makeParams.URL || 
-          '';
-        
-        // Handle method parameter (case-insensitive)
-        n8nNode.parameters.method = 
-          mapper.method || mapper.METHOD || 
-          makeParams.method || makeParams.METHOD || 
-          'GET';
+      // Look up the mapping for this module type
+      const mapping = this.getNodeMappingByMakeId(moduleType);
 
-        // Transform expressions in URL parameter
-        if (n8nNode.parameters.url && typeof n8nNode.parameters.url === 'string' && 
-            n8nNode.parameters.url.includes('{{') && n8nNode.parameters.url.includes('}}')) {
-          // Convert Make.com expressions to n8n expressions
-          const urlParam = n8nNode.parameters.url;
-          const convertedUrl = convertMakeExpressionToN8n(urlParam);
-          n8nNode.parameters.url = convertedUrl;
-          logger.debug(`Converted URL parameter from "${urlParam}" to "${convertedUrl}"`);
-        }
-
-        // Only set authentication if it's not "none" and not empty/undefined
-        const auth = mapper.authentication || makeParams.authentication;
-        if (auth && auth !== 'none') {
-          n8nNode.parameters.authentication = auth;
-        }
-        
-        // Handle headers if they exist
-        if (mapper.headers || makeParams.headers || convertedParams.headers) {
-          n8nNode.parameters.headers = mapper.headers || makeParams.headers || convertedParams.headers || {};
-        }
-        
-        // Handle authentication if specified
-        if (mapper.authentication || makeParams.authentication) {
-          const authConfig = typeof mapper.authentication === 'string' 
-            ? { type: mapper.authentication } 
-            : mapper.authentication || makeParams.authentication || { type: 'none' };
-          
-          const authType = (authConfig.type || 'none').toLowerCase();
-          
-          // Only set credentials if authentication type is not 'none'
-          if (authType !== 'none') {
-            if (authType === 'basic' || authType === 'basicauth') {
-              n8nNode.parameters.authentication = 'basicAuth';
-              n8nNode.credentials = {
-                httpBasicAuth: {
-                  username: mapper.username || makeParams.username || convertedParams.username || '',
-                  password: mapper.password || makeParams.password || convertedParams.password || ''
-                }
-              };
-              logger.debug('Added Basic Auth credentials to HTTP node');
-            } else if (authType === 'header' || authType === 'headerauth') {
-              n8nNode.parameters.authentication = 'headerAuth';
-              n8nNode.credentials = {
-                httpHeaderAuth: {
-                  name: authConfig.name || 'Authorization',
-                  value: authConfig.value || ''
-                }
-              };
-              logger.debug('Added Header Auth credentials to HTTP node');
-            } else if (authType === 'oauth2' || authType === 'oauth') {
-              n8nNode.parameters.authentication = 'oAuth2';
-              n8nNode.credentials = {
-                oAuth2Api: {
-                  accessToken: authConfig.accessToken || '',
-                  refreshToken: authConfig.refreshToken || '',
-                  tokenType: authConfig.tokenType || 'Bearer'
-                }
-              };
-              logger.debug('Added OAuth2 credentials to HTTP node');
-            } else if (authType === 'apikey' || authType === 'queryauth') {
-              n8nNode.parameters.authentication = 'queryAuth';
-              n8nNode.credentials = {
-                httpQueryAuth: {
-                  name: authConfig.name || 'api_key',
-                  value: authConfig.value || ''
-                }
-              };
-              logger.debug('Added Query Auth credentials to HTTP node');
-            }
-          }
-        }
-        
-        // Only add options if they are explicitly provided
-        if (makeParams.options || mapper.options) {
-          n8nNode.parameters.options = makeParams.options || mapper.options || {};
-        }
-        
-        // Copy position if available
-        if (makeModule.position) {
-          n8nNode.position = this.normalizePosition(makeModule.position);
-        }
-        
-        // Return the result
-        return {
-          node: n8nNode,
-          debug: options.debug ? {
-            sourceModule: makeModule,
-            options,
-            note: 'Used enhanced HTTP mapping'
-          } : undefined
-        };
-      }
-      
-      // Special case for JSON modules
-      if (!mapping && (moduleType === 'json' || fullModuleString === 'json')) {
-        logger.info('Converting JSON module to JSON Parse node');
-        
-        // Extract parameters from the Make module
-        const mapper = makeModule.mapper || {};
-        
-        // Create a base n8n node for JSON Parse
-        const n8nNode: N8nNode = {
-          id: makeModule.id ? String(makeModule.id) : generateNodeId(),
-          name: makeModule.name || makeModule.label || 'JSON Parse',
-          type: 'n8n-nodes-base.jsonParse',
-          parameters: {
-            property: mapper.parsedObject || '{{$json.data}}'
-          },
-          typeVersion: 1
-        };
-        
-        // Set position
-        n8nNode.position = [0, 0];
-        
-        return {
-          node: n8nNode,
-          debug: {
-            moduleType,
-            fullModuleString
-          }
-        };
-      }
-      
-      // Special case for Function/Tools modules
-      if (!mapping && (moduleType === 'tools' || fullModuleString === 'tools')) {
-        logger.info('Converting Tools module to Function node');
-        
-        // Extract parameters from the Make module
-        const mapper = makeModule.mapper || {};
-        
-        // Create a base n8n node for Function
-        const n8nNode: N8nNode = {
-          id: makeModule.id ? String(makeModule.id) : generateNodeId(),
-          name: makeModule.name || makeModule.label || 'Function',
-          type: 'n8n-nodes-base.function',
-          parameters: {
-            functionCode: mapper.code || '// Add code here\nreturn items;'
-          },
-          typeVersion: 1
-        };
-        
-        // Set position
-        n8nNode.position = [0, 0];
-        
-        return {
-          node: n8nNode,
-          debug: {
-            moduleType,
-            fullModuleString
-          }
-        };
-      }
-      
+      // Check if we should create a placeholder node when no mapping is found
       if (!mapping) {
-        // Create a placeholder node instead of throwing an error
+        // If bypassing module availability checks is enabled, create a placeholder node
+        if (options.bypassModuleAvailabilityChecks === true) {
+          logger.info(`No mapping found for Make.com module type: ${moduleType || 'undefined'}, but bypassModuleAvailabilityChecks is enabled. Creating placeholder node.`);
+          
+          // Create a placeholder node that clearly indicates it's unmapped
+          const n8nNode: N8nNode = {
+            id: makeModule.id ? String(makeModule.id) : generateNodeId(),
+            name: `[Unmapped] ${makeModule.name || makeModule.label || (moduleType ? moduleType : 'Unknown')}`,
+            type: 'n8n-nodes-base.noOp',
+            parameters: {
+              __stubInfo: {
+                originalModuleType: moduleType || 'custom',
+                fullModuleString: fullModuleString || '',
+                originalName: makeModule.name || makeModule.label || '',
+                devModeCreated: true
+              } as unknown as ParameterValue, // Type assertion to satisfy ParameterValue
+              displayName: makeModule.name || makeModule.label || moduleType,
+              notes: `This is a placeholder for an unmapped Make.com module of type "${moduleType || 'undefined'}". Created in dev mode with bypass enabled.`
+            },
+            typeVersion: 1
+          };
+          
+          // Copy position if available
+          if (makeModule.position) {
+            n8nNode.position = this.normalizePosition(makeModule.position);
+          }
+          
+          // Copy all parameters from the original module to help with debugging
+          if (makeModule.parameters) {
+            Object.assign(n8nNode.parameters, makeModule.parameters);
+          }
+          
+          if (makeModule.mapper) {
+            // Store the mapper content in the parameters for reference
+            Object.keys(makeModule.mapper).forEach(key => {
+              const paramName = `__mapper_${key}`;
+              n8nNode.parameters[paramName] = makeModule.mapper![key];
+            });
+          }
+          
+          // Return the placeholder node
+          const result: ConversionResult = {
+            node: n8nNode
+          };
+          
+          // Include debug info if requested
+          if (options.debug) {
+            result.debug = {
+              sourceModule: makeModule,
+              options,
+              bypassEnabled: true
+            };
+          }
+          
+          return result;
+        }
+        
+        // Special case for setVariable module
+        if (moduleType === 'setVariable' || moduleType === 'builtin:SetVariable') {
+          return this.createSetVariableNode(makeModule, options);
+        }
+        
+        // For other modules, create a standard placeholder if not in bypass mode (original code)
         logger.warn(`No mapping found for Make.com module type: ${moduleType || 'undefined'}. Creating placeholder node.`);
         
         // Create a placeholder node that clearly indicates it's unmapped

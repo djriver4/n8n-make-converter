@@ -1,0 +1,20 @@
+Starting Feature Enabled Test Script
+Date: 2025-03-16T04:48:14.663Z
+
+=== Testing isDevelopmentMode function ===
+NODE_ENV before: undefined
+isDevelopmentMode(): false
+NODE_ENV after setting to 'development': development
+isDevelopmentMode() after setting NODE_ENV: true
+
+=== Testing isFeatureEnabled function ===
+isFeatureEnabled(false, false): false
+isFeatureEnabled(true, false): true
+isFeatureEnabled(false, true): false
+isFeatureEnabled(true, true): true
+
+=== Testing FeatureFlags class ===
+Initial enableFullConversionInDevMode: undefined
+Updated enableFullConversionInDevMode: true
+isFeatureEnabled(updatedFlag, true): true
+Reset enableFullConversionInDevMode: false

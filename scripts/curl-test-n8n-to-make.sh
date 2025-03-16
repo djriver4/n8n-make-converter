@@ -1,0 +1,3 @@
+curl -X POST http://localhost:3000/api/convert/direct \
+  -H "Content-Type: application/json" \
+  -d '{"workflow": {"name":"Test n8n Workflow with Unsupported Node","active":true,"nodes":[{"id":"a1b2c3","name":"HTTP Request","type":"n8n-nodes-base.httpRequest","parameters":{"url":"https://example.com/api","method":"GET"},"position":[100,200]},{"id":"d4e5f6","name":"UnsupportedNode","type":"n8n-nodes-base.unsupportedNodeType","parameters":{"property":"data"},"position":[300,200]}],"connections":{"HTTP Request":{"main":[[{"node":"UnsupportedNode","type":"main","index":0}]]}}}, "sourcePlatform": "n8n", "targetPlatform": "make", "options": {"bypassModuleAvailabilityChecks": true}}'

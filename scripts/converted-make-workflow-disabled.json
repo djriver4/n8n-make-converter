@@ -1,0 +1,47 @@
+{
+  "name": "Test n8n Workflow with Unsupported Node",
+  "flow": [
+    {
+      "id": 1,
+      "module": "http:ActionSendData",
+      "label": "HTTP Request",
+      "name": "HTTP Request",
+      "type": "http",
+      "parameters": {},
+      "mapper": {
+        "url": "https://example.com/api",
+        "method": "GET"
+      }
+    },
+    {
+      "id": 2,
+      "module": "helper:Note",
+      "label": "Placeholder for UnsupportedNode (n8n-nodes-base.unsupportedNodeType)",
+      "mapper": {
+        "originalNodeType": "n8n-nodes-base.unsupportedNodeType",
+        "originalNodeName": "UnsupportedNode",
+        "note": "This node could not be automatically converted. Original type: n8n-nodes-base.unsupportedNodeType"
+      },
+      "parameters": {},
+      "name": "UnsupportedNode",
+      "type": "helper:Note"
+    }
+  ],
+  "metadata": {
+    "instant": false,
+    "scenario": {
+      "roundtrips": 1,
+      "maxErrors": 3,
+      "autoCommit": true,
+      "autoCommitTriggerLast": true,
+      "sequential": false,
+      "confidential": false,
+      "dataloss": false,
+      "dlq": false,
+      "source": "n8n-converter"
+    },
+    "designer": {
+      "orphans": []
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "name": "Test Make Workflow with Unsupported Module",
+  "nodes": [
+    {
+      "id": "n_50c031a6",
+      "name": "Unmapped Unknown",
+      "type": "n8n-nodes-base.noOp",
+      "parameters": {
+        "originalType": "unknown",
+        "displayName": "Placeholder for unknown"
+      },
+      "position": [
+        0,
+        0
+      ]
+    },
+    {
+      "id": "n_3f7805e1",
+      "name": "Unmapped Unknown",
+      "type": "n8n-nodes-base.noOp",
+      "parameters": {
+        "originalType": "unknown",
+        "displayName": "Placeholder for unknown"
+      },
+      "position": [
+        200,
+        0
+      ]
+    }
+  ],
+  "connections": {
+    "Unmapped Unknown": {
+      "main": {
+        "0": [
+          {
+            "node": "Unmapped Unknown",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      }
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  }
+}

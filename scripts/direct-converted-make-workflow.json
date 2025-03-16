@@ -1,0 +1,9 @@
+{
+  "name": "Test n8n Workflow with Unsupported Node",
+  "modules": [],
+  "routes": [],
+  "active": true,
+  "settings": {},
+  "labels": [],
+  "version": 1
+}

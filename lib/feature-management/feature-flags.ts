@@ -17,6 +17,7 @@ export interface FeatureFlags {
   
   // Experimental
   experimentalFeatures: boolean;
+  enableFullConversionInDevMode: boolean; // Enables full conversion even if modules are not available (dev mode only)
 }
 
 // Default state for all feature flags
@@ -27,6 +28,7 @@ const defaultFeatureFlags: FeatureFlags = {
   enableGitHubFetching: true, 
   enableLocalStorage: true,
   experimentalFeatures: false,
+  enableFullConversionInDevMode: false,
 };
 
 // Singleton for feature flag management

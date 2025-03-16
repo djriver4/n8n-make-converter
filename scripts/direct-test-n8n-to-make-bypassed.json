@@ -1,0 +1,62 @@
+{
+  "convertedWorkflow": {
+    "name": "Test n8n Workflow with Unsupported Node",
+    "modules": [
+      {
+        "id": "a1b2c3",
+        "name": "[UNMAPPED] HTTP Request",
+        "type": "placeholder",
+        "parameters": {
+          "originalType": "n8n-nodes-base.httpRequest"
+        },
+        "notes": "This module represents an unmapped n8n node of type: n8n-nodes-base.httpRequest",
+        "position": [
+          100,
+          200
+        ]
+      },
+      {
+        "id": "d4e5f6",
+        "name": "[UNMAPPED] UnsupportedNode",
+        "type": "placeholder",
+        "parameters": {
+          "originalType": "n8n-nodes-base.unsupportedNodeType"
+        },
+        "notes": "This module represents an unmapped n8n node of type: n8n-nodes-base.unsupportedNodeType",
+        "position": [
+          300,
+          200
+        ]
+      }
+    ],
+    "routes": [],
+    "active": true,
+    "settings": {},
+    "labels": [],
+    "version": 1
+  },
+  "logs": [
+    {
+      "type": "warning",
+      "message": "No mapping found for n8n node type: n8n-nodes-base.httpRequest",
+      "timestamp": "2025-03-16T04:49:33.839Z"
+    },
+    {
+      "type": "warning",
+      "message": "No mapping found for n8n node type: n8n-nodes-base.unsupportedNodeType",
+      "timestamp": "2025-03-16T04:49:33.839Z"
+    }
+  ],
+  "parametersNeedingReview": [],
+  "unmappedNodes": [
+    "n8n-nodes-base.httpRequest",
+    "n8n-nodes-base.unsupportedNodeType"
+  ],
+  "isValidInput": true,
+  "debug": {
+    "mappedModules": [],
+    "unmappedModules": [],
+    "mappedNodes": [],
+    "unmappedNodes": []
+  }
+}

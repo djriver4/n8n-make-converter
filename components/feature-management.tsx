@@ -47,6 +47,7 @@ export function FeatureManagement() {
 
   const experimentalFlags = {
     experimentalFeatures: flags.experimentalFeatures,
+    enableFullConversionInDevMode: flags.enableFullConversionInDevMode,
   }
 
   return (
@@ -164,6 +165,7 @@ function getFlagDescription(key: string): string {
     enableGitHubFetching: "Enable fetching node information from GitHub",
     enableLocalStorage: "Enable storing data in browser localStorage",
     experimentalFeatures: "Enable experimental features",
+    enableFullConversionInDevMode: "Enable full conversion in development mode even when modules are not available",
   }
   
   return descriptions[key] || "No description available"

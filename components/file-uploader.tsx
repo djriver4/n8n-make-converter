@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useEffect } from "react"
 import { Upload, FileUp, Settings } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -14,6 +14,8 @@ import { optimizeWorkflow } from "@/lib/performance/workflow-optimizer"
 import { v4 as uuidv4 } from "uuid"
 import { UploadNotification } from "./upload-notification"
 import { ConversionPanel } from "./conversion-panel"
+import { isDevelopmentMode } from "@/lib/utils/environment"
+import { FeatureFlags } from "@/lib/feature-management/feature-flags"
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024 // 10MB
 const ALLOWED_FILE_TYPES = [".json", ".workflow"]
@@ -23,6 +25,18 @@ export function FileUploader() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const { uploadWorkflow } = useWorkflowStore()
   const { addFile, updateFile, files } = useUploadStore()
+  const [isDevMode, setIsDevMode] = useState(false)
+  
+  useEffect(() => {
+    const devMode = isDevelopmentMode()
+    setIsDevMode(devMode)
+    
+    if (devMode) {
+      const fullConversionEnabled = FeatureFlags.getFlag('enableFullConversionInDevMode')
+      console.log('[DevMode] Development mode active:', devMode)
+      console.log('[DevMode] Full conversion enabled:', fullConversionEnabled)
+    }
+  }, [])
 
   const handleFileChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -80,6 +94,12 @@ export function FileUploader() {
         }
         updateFile(fileId, { progress: 70, platform })
 
+        // Log development mode status when processing a file
+        if (isDevMode) {
+          console.log('[DevMode] Processing workflow file in development mode')
+          console.log('[DevMode] Full conversion enabled:', FeatureFlags.getFlag('enableFullConversionInDevMode'))
+        }
+
         // Additional validation for Make.com workflows
         if (platform === "make" && json.flow && Array.isArray(json.flow)) {
           // Check for modules with undefined type properties
@@ -111,7 +131,7 @@ export function FileUploader() {
         setIsUploading(false)
       }
     },
-    [addFile, updateFile, uploadWorkflow],
+    [addFile, updateFile, uploadWorkflow, isDevMode],
   )
 
   return (

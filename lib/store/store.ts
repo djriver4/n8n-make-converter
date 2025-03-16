@@ -3,6 +3,8 @@ import { persist } from "zustand/middleware"
 import { detectPlatform } from "../platform-detector"
 import { convertWorkflow } from "../converter"
 import { sanitizeCredentials } from "../security/credential-handler"
+import { isDevelopmentMode } from "../utils/environment"
+import { FeatureFlags } from "../feature-management/feature-flags"
 
 type Log = {
   type: "info" | "warning" | "error"
@@ -223,12 +225,30 @@ export const useWorkflowStore = create<WorkflowState>()(
         })
 
         try {
-          // Perform the conversion
+          // Check if we should bypass module availability checks in development mode
+          const isDev = isDevelopmentMode()
+          const enableFullConversion = FeatureFlags.getFlag('enableFullConversionInDevMode')
+          
+          // Enhanced conversion options
+          const conversionOptions = {
+            ...state.settings,
+            bypassModuleAvailabilityChecks: isDev && enableFullConversion
+          }
+          
+          // Log for debugging
+          if (isDev) {
+            console.log('[DevMode] Starting conversion with options:', {
+              ...conversionOptions,
+              bypassModuleAvailabilityChecks: conversionOptions.bypassModuleAvailabilityChecks
+            })
+          }
+
+          // Perform the conversion with explicit options
           const result = await convertWorkflow(
             state.parsedWorkflow,
             state.sourcePlatform,
             state.targetPlatform,
-            state.settings,
+            conversionOptions,
           )
 
           if (!result || !result.convertedWorkflow) {

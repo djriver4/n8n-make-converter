@@ -1,0 +1,18 @@
+{
+  "convertedWorkflow": {
+    "active": false,
+    "connections": {},
+    "name": "Test Make Workflow with Unsupported Module",
+    "nodes": []
+  },
+  "logs": [],
+  "parametersNeedingReview": [],
+  "unmappedNodes": [],
+  "isValidInput": true,
+  "debug": {
+    "mappedModules": [],
+    "unmappedModules": [],
+    "mappedNodes": [],
+    "unmappedNodes": []
+  }
+}

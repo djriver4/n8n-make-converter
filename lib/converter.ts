@@ -10,6 +10,8 @@ import { DebugTracker } from "./debug-tracker"
 import { getPluginRegistry } from "./plugins/plugin-registry"
 import { ensureMappingsEnhanced } from "./node-info-fetchers/update-node-mappings"
 import { Logger } from "./logger"
+import { isDevelopmentMode } from "./utils/environment"
+import { FeatureFlags } from "./feature-management/feature-flags"
 
 // Define log structure
 interface ConversionLog {
@@ -30,6 +32,7 @@ interface ConversionResult {
 // Define conversion options structure
 interface ConversionOptions {
   // Add any necessary options here
+  bypassModuleAvailabilityChecks?: boolean;
 }
 
 /**
@@ -69,6 +72,26 @@ export async function convertWorkflow(
   debugTracker.addLog("info", `Starting ${targetPlatform} conversion`)
 
   try {
+    // Check if we're in development mode and should bypass module availability checks
+    const isDev = isDevelopmentMode();
+    const enableFullConversion = FeatureFlags.getFlag('enableFullConversionInDevMode');
+    
+    // Always set the bypass option explicitly based on development mode and feature flag
+    const bypassModuleChecks = options.bypassModuleAvailabilityChecks || (isDev && enableFullConversion);
+    
+    // In development mode, log the conversion options for debugging
+    if (isDev) {
+      console.log('[DevMode] Starting conversion with options:', {
+        sourcePlatform,
+        targetPlatform,
+        ...options,
+        bypassModuleAvailabilityChecks: bypassModuleChecks
+      });
+    }
+    
+    // Ensure the bypass flag is in the options
+    options.bypassModuleAvailabilityChecks = bypassModuleChecks;
+
     // Check if workflow is empty
     if (!workflow || Object.keys(workflow).length === 0) {
       const errorMsg = "Source workflow is empty";

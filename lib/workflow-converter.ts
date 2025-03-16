@@ -30,6 +30,9 @@ import { validateMakeWorkflow, validateN8nWorkflow } from "./utils/validate-work
 import { NodeMapper, NodeMappingError } from "./node-mappings/node-mapper";
 import { NodeMappingLoader } from "./node-mappings/node-mapping-loader";
 import { NodeMappingDatabase } from "./node-mappings/schema";
+// Import feature flags for development mode
+import { FeatureFlags } from "./feature-management/feature-flags";
+import { isFeatureEnabled } from "./utils/environment";
 // Import our new utility functions
 import {
   generateNodeId,
@@ -66,6 +69,9 @@ import {
 
 // Import the performance logger
 import { PerformanceLogger } from "./performance-logger";
+
+// Import the environment utilities
+import { isDevelopmentMode } from "./utils/environment";
 
 // Direction of node mapping conversion
 enum MappingDirection {
@@ -130,6 +136,8 @@ interface ConversionOptions {
   debug?: boolean;
   // Whether to copy non-mapped parameters
   copyNonMappedParameters?: boolean;
+  // Whether to bypass module availability checks (for development mode)
+  bypassModuleAvailabilityChecks?: boolean;
   // Other options
   [key: string]: any;
 }
@@ -138,6 +146,7 @@ interface ConversionOptions {
 export interface WorkflowConversionOptions {
   skipValidation?: boolean;
   debug?: boolean;
+  bypassModuleAvailabilityChecks?: boolean;
   [key: string]: any;
 }
 
@@ -183,6 +192,20 @@ export class WorkflowConverter {
     const parametersNeedingReview: string[] = [];
     const unmappedNodes: string[] = [];
     const debug: Record<string, any> = {};
+    
+    // Check if we should bypass module availability checks (in dev mode)
+    const bypassModuleChecks = options.bypassModuleAvailabilityChecks || 
+      isFeatureEnabled(FeatureFlags.getFlag('enableFullConversionInDevMode'), true);
+    
+    // Log if bypassing is enabled
+    if (bypassModuleChecks) {
+      console.log('[DevMode] Bypassing module availability checks for n8n to Make conversion');
+      logs.push({
+        type: "info",
+        message: "Development mode: Bypassing module availability checks. Unmapped nodes will be converted to placeholders.",
+        timestamp: new Date().toISOString()
+      });
+    }
     
     // Validate input if not skipped
     let isValidInput = true;
@@ -389,6 +412,23 @@ export class WorkflowConverter {
       mappedNodes: [],
       unmappedNodes: []
     };
+
+    // Check if we should bypass module availability checks (in dev mode)
+    const bypassModuleChecks = options.bypassModuleAvailabilityChecks || 
+      isFeatureEnabled(FeatureFlags.getFlag('enableFullConversionInDevMode'), true);
+
+    // Override the option with the calculated value to ensure it's used in the NodeMapper
+    options.bypassModuleAvailabilityChecks = bypassModuleChecks;
+    
+    // Log if bypassing is enabled - make sure this is logged consistently with the n8n to Make conversion
+    if (bypassModuleChecks) {
+      console.log('[DevMode] Bypassing module availability checks for Make to n8n conversion');
+      logs.push({
+        type: "info",
+        message: "Development mode: Bypassing module availability checks. Unmapped modules will be converted to placeholders.",
+        timestamp: new Date().toISOString()
+      });
+    }
 
     // Validate input unless we're skipping validation
     if (!options.skipValidation) {
@@ -844,6 +884,19 @@ export function convertN8nToMake(
   n8nWorkflow: N8nWorkflow,
   options: ConversionOptions = {}
 ): ConversionResult {
+  // Add the dev mode check
+  const bypassModuleChecks = options.bypassModuleAvailabilityChecks || 
+    isFeatureEnabled(FeatureFlags.getFlag('enableFullConversionInDevMode'), true);
+  
+  // Add more detailed logging
+  console.log('[DEBUG] convertN8nToMake - Feature flag check:');
+  console.log(`[DEBUG] options.bypassModuleAvailabilityChecks: ${options.bypassModuleAvailabilityChecks}`);
+  console.log(`[DEBUG] FeatureFlags.getFlag('enableFullConversionInDevMode'): ${FeatureFlags.getFlag('enableFullConversionInDevMode')}`);
+  console.log(`[DEBUG] isDevelopmentMode(): ${isDevelopmentMode()}`);
+  console.log(`[DEBUG] NODE_ENV: ${process.env.NODE_ENV}`);
+  console.log(`[DEBUG] bypassModuleChecks: ${bypassModuleChecks}`);
+  
+  // Include in options
   const performanceLogger = PerformanceLogger.getInstance();
   
   return performanceLogger.trackOperation(
@@ -855,7 +908,10 @@ export function convertN8nToMake(
         // Call the internal implementation with performance tracking
         const result = performanceLogger.trackOperation(
           'internalConvertN8nToMake',
-          () => converter.convertN8nToMake(n8nWorkflow, options),
+          () => converter.convertN8nToMake(n8nWorkflow, {
+            ...options,
+            bypassModuleAvailabilityChecks: bypassModuleChecks
+          }),
           'conversion'
         );
         
@@ -886,6 +942,19 @@ export function convertMakeToN8n(
   makeWorkflow: MakeWorkflow,
   options: ConversionOptions = {}
 ): ConversionResult {
+  // Add the dev mode check
+  const bypassModuleChecks = options.bypassModuleAvailabilityChecks || 
+    isFeatureEnabled(FeatureFlags.getFlag('enableFullConversionInDevMode'), true);
+  
+  // Add more detailed logging
+  console.log('[DEBUG] convertMakeToN8n - Feature flag check:');
+  console.log(`[DEBUG] options.bypassModuleAvailabilityChecks: ${options.bypassModuleAvailabilityChecks}`);
+  console.log(`[DEBUG] FeatureFlags.getFlag('enableFullConversionInDevMode'): ${FeatureFlags.getFlag('enableFullConversionInDevMode')}`);
+  console.log(`[DEBUG] isDevelopmentMode(): ${isDevelopmentMode()}`);
+  console.log(`[DEBUG] NODE_ENV: ${process.env.NODE_ENV}`);
+  console.log(`[DEBUG] bypassModuleChecks: ${bypassModuleChecks}`);
+  
+  // Include in options
   const performanceLogger = PerformanceLogger.getInstance();
   
   return performanceLogger.trackOperation(
@@ -946,7 +1015,10 @@ export function convertMakeToN8n(
         // Call the internal implementation with performance tracking
         const result = performanceLogger.trackOperation(
           'internalConvertMakeToN8n',
-          () => converter.convertMakeToN8n(makeWorkflow, options),
+          () => converter.convertMakeToN8n(makeWorkflow, {
+            ...options,
+            bypassModuleAvailabilityChecks: bypassModuleChecks
+          }),
           'conversion'
         );
         
