@@ -304,19 +304,21 @@ describe('NodeMapper', () => {
       });
     });
 
-    it('should throw an error for unknown module types', () => {
-      const makeModule = {
-        id: 'test-id',
+    it('should create a placeholder node for unknown module types', () => {
+      const makeModule: MakeModule = {
+        id: '123',
         name: 'Unknown Module',
         type: 'unknown',
-        parameters: {},
-        position: [100, 200]
+        parameters: {}
       };
-
-      // It should throw an error for unknown module types
-      expect(() => {
-        nodeMapper.convertMakeModuleToN8nNode(makeModule);
-      }).toThrow('No mapping found for Make.com module type: unknown');
+      
+      const result = nodeMapper.convertMakeModuleToN8nNode(makeModule);
+      
+      expect(result).toBeDefined();
+      expect(result.node.type).toBe('n8n-nodes-base.noOp');
+      expect(result.node.name).toContain('[Unmapped]');
+      expect(result.node.parameters.__stubInfo).toBeDefined();
+      expect(result.node.parameters.__stubInfo.originalModuleType).toBe('unknown');
     });
   });
 

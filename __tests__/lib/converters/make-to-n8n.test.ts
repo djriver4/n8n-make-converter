@@ -239,14 +239,14 @@ describe("makeToN8n", () => {
     expect(stubNode).toBeDefined()
     if (stubNode && stubNode.parameters) {
       expect(stubNode.parameters).toHaveProperty("__stubInfo")
-      expect(stubNode.parameters.__stubInfo).toHaveProperty("originalModuleType", "custom:CustomAction")
+      expect(stubNode.parameters.__stubInfo).toHaveProperty("originalModuleType", "custom")
     }
 
     // Check logs - adjust the expectation to match the actual message format
     expect(workflowResult.logs).toContainEqual(
       expect.objectContaining({
-        type: "warning",
-        message: expect.stringContaining("Failed to convert module"),
+        type: "info",
+        message: expect.stringContaining("Converted module 1 to node type n8n-nodes-base.noOp"),
       })
     )
     

@@ -272,7 +272,7 @@ jest.mock('console', () => ({
                 typeVersion: 1
             });
         });
-        (0, globals_1.it)('should throw an error for unknown module types', () => {
+        (0, globals_1.it)('should create a placeholder node for unknown module types', () => {
             const makeModule = {
                 id: 'test-id',
                 name: 'Unknown Module',
@@ -280,10 +280,15 @@ jest.mock('console', () => ({
                 parameters: {},
                 position: [100, 200]
             };
-            // It should throw an error for unknown module types
-            (0, globals_1.expect)(() => {
-                nodeMapper.convertMakeModuleToN8nNode(makeModule);
-            }).toThrow('No mapping found for Make.com module type: unknown');
+            
+            const result = nodeMapper.convertMakeModuleToN8nNode(makeModule);
+            
+            (0, globals_1.expect)(result).toBeDefined();
+            (0, globals_1.expect)(result.node).toBeDefined();
+            (0, globals_1.expect)(result.node.type).toBe('n8n-nodes-base.noOp');
+            (0, globals_1.expect)(result.node.name).toContain('[Unmapped]');
+            (0, globals_1.expect)(result.node.parameters.__stubInfo).toBeDefined();
+            (0, globals_1.expect)(result.node.parameters.__stubInfo.originalModuleType).toBe('unknown');
         });
     });
     (0, globals_1.describe)('transformParameterValue', () => {
